@@ -2,17 +2,32 @@
 export const CONTEXT_LIMITS = {
   // Maximum characters to return in a single response (keeps context manageable)
   MAX_RESPONSE_CHARS: 8000,
-  
+
   // Default pagination limits (small to preserve context)
   DEFAULT_PAGE_SIZE: 10,
   MAX_PAGE_SIZE: 50,
-  
+
   // Summary thresholds
   SUMMARY_THRESHOLD: 20, // If more than 20 records, suggest using summary tools
-  
+
   // Field limits for detailed views
   MAX_FIELDS_DETAIL: 15,
   MAX_FIELDS_LIST: 8,
+} as const;
+
+// Export configuration
+export const EXPORT_CONFIG = {
+  // Default output directory for exports (Claude.ai compatible)
+  DEFAULT_OUTPUT_DIR: '/mnt/user-data/outputs',
+
+  // Environment variable name for custom output directory
+  OUTPUT_DIR_ENV_VAR: 'MCP_EXPORT_DIR',
+
+  // File size warning threshold in bytes (default: 50MB)
+  MAX_SIZE_WARNING_BYTES: 50 * 1024 * 1024,
+
+  // Environment variable name for max size threshold (in MB)
+  MAX_SIZE_ENV_VAR: 'MCP_EXPORT_MAX_SIZE_MB',
 } as const;
 
 // Odoo CRM field mappings for context efficiency

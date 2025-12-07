@@ -548,6 +548,9 @@ export const ExportDataSchema = z.object({
         .min(1)
         .max(5000)
         .default(1000)
-        .describe('Maximum records to export (1-5000)')
+        .describe('Maximum records to export (1-5000)'),
+    output_dir: z.string()
+        .optional()
+        .describe('Override output directory (default: /mnt/user-data/outputs or MCP_EXPORT_DIR env var)')
 }).strict();
 //# sourceMappingURL=index.js.map

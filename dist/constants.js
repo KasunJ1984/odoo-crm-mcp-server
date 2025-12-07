@@ -11,6 +11,17 @@ export const CONTEXT_LIMITS = {
     MAX_FIELDS_DETAIL: 15,
     MAX_FIELDS_LIST: 8,
 };
+// Export configuration
+export const EXPORT_CONFIG = {
+    // Default output directory for exports (Claude.ai compatible)
+    DEFAULT_OUTPUT_DIR: '/mnt/user-data/outputs',
+    // Environment variable name for custom output directory
+    OUTPUT_DIR_ENV_VAR: 'MCP_EXPORT_DIR',
+    // File size warning threshold in bytes (default: 50MB)
+    MAX_SIZE_WARNING_BYTES: 50 * 1024 * 1024,
+    // Environment variable name for max size threshold (in MB)
+    MAX_SIZE_ENV_VAR: 'MCP_EXPORT_MAX_SIZE_MB',
+};
 // Odoo CRM field mappings for context efficiency
 export const CRM_FIELDS = {
     // Minimal fields for list views (context-efficient)

@@ -6,6 +6,12 @@ export declare const CONTEXT_LIMITS: {
     readonly MAX_FIELDS_DETAIL: 15;
     readonly MAX_FIELDS_LIST: 8;
 };
+export declare const EXPORT_CONFIG: {
+    readonly DEFAULT_OUTPUT_DIR: "/mnt/user-data/outputs";
+    readonly OUTPUT_DIR_ENV_VAR: "MCP_EXPORT_DIR";
+    readonly MAX_SIZE_WARNING_BYTES: number;
+    readonly MAX_SIZE_ENV_VAR: "MCP_EXPORT_MAX_SIZE_MB";
+};
 export declare const CRM_FIELDS: {
     LEAD_LIST: string[];
     LEAD_LIST_EXTENDED: string[];

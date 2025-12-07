@@ -445,16 +445,17 @@ export interface ActivityDetail extends MailActivity {
   activity_status?: 'overdue' | 'today' | 'upcoming' | 'done';
 }
 
-// Export Result
+// Export Result - File-based export (writes to filesystem)
 export interface ExportResult {
   [key: string]: unknown;
-  download_url?: string;
+  success: boolean;
+  filepath: string;
   filename: string;
   record_count: number;
-  file_size?: number;
-  expires_at?: string;
-  data?: string; // Base64 encoded for small exports
+  file_size_bytes: number;
   format: 'csv' | 'json';
+  message: string;
+  warning?: string; // Size warning if file exceeds threshold
 }
 
 // Pipeline Summary with weighted revenue
