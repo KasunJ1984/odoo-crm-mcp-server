@@ -637,28 +637,34 @@ export function formatActivityList(data, format) {
     output += '\n\n**Legend:** 🔴 Overdue | 🟡 Today | 🟢 Upcoming | ✅ Done';
     return output;
 }
-// Format export result
+// Format export result (file-based export)
 export function formatExportResult(result, format) {
     if (format === ResponseFormat.JSON) {
         return JSON.stringify(result, null, 2);
     }
     let output = `## Export Complete\n\n`;
+    output += `- **Status:** ${result.success ? '✓ Success' : '✗ Failed'}\n`;
+    output += `- **Filepath:** \`${result.filepath}\`\n`;
     output += `- **Filename:** ${result.filename}\n`;
     output += `- **Records:** ${result.record_count.toLocaleString()}\n`;
     output += `- **Format:** ${result.format.toUpperCase()}\n`;
-    if (result.file_size) {
-        const sizeKB = (result.file_size / 1024).toFixed(1);
-        output += `- **Size:** ${sizeKB} KB\n`;
+    // Format file size in human-readable format
+    const bytes = result.file_size_bytes;
+    let sizeStr;
+    if (bytes < 1024) {
+        sizeStr = `${bytes} B`;
     }
-    if (result.download_url) {
-        output += `- **Download:** ${result.download_url}\n`;
-        if (result.expires_at) {
-            output += `- **Expires:** ${result.expires_at}\n`;
-        }
+    else if (bytes < 1024 * 1024) {
+        sizeStr = `${(bytes / 1024).toFixed(1)} KB`;
     }
-    else if (result.data) {
-        output += `\n**Data (Base64 encoded):**\n\`\`\`\n${result.data.substring(0, 500)}${result.data.length > 500 ? '...' : ''}\n\`\`\`\n`;
+    else {
+        sizeStr = `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
     }
+    output += `- **Size:** ${sizeStr}\n`;
+    if (result.warning) {
+        output += `\n**⚠️ Warning:** ${result.warning}\n`;
+    }
+    output += `\n${result.message}\n`;
     return output;
 }
 // Format pipeline summary with weighted revenue

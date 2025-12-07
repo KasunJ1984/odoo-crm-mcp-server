@@ -67,7 +67,10 @@ import {
   type ActivitySearchInput,
   type ExportDataInput
 } from '../schemas/index.js';
-import { CRM_FIELDS, CONTEXT_LIMITS, ResponseFormat } from '../constants.js';
+import { CRM_FIELDS, CONTEXT_LIMITS, ResponseFormat, EXPORT_CONFIG } from '../constants.js';
+import * as fs from 'fs';
+import * as path from 'path';
+import { randomUUID } from 'crypto';
 import type { CrmLead, CrmStage, ResPartner, PaginatedResponse, PipelineSummary, SalesAnalytics, ActivitySummary, CrmLostReason, LostReasonWithCount, LostAnalysisSummary, LostOpportunity, LostTrendsSummary, WonOpportunity, WonAnalysisSummary, WonTrendsSummary, SalespersonWithStats, SalesTeamWithStats, PerformanceComparison, ActivityDetail, ExportResult, PipelineSummaryWithWeighted, CrmTeam, ResUsers, OdooRecord } from '../types.js';
 
 // Register all CRM tools
@@ -2663,20 +2666,28 @@ Returns a paginated list of activities with details including type, due date, st
     'odoo_crm_export_data',
     {
       title: 'Export CRM Data',
-      description: `Generate CSV/JSON export of CRM data.
+      description: `Generate CSV/JSON export of CRM data and save to filesystem.
 
-Creates an export file of the requested data type with optional filters. Returns base64 encoded data for small exports.
+Creates an export file of the requested data type with optional filters. Files are written directly to the filesystem to handle large datasets without payload truncation.
+
+**Output Location:**
+- Default: /mnt/user-data/outputs (Claude.ai compatible)
+- Override via output_dir parameter or MCP_EXPORT_DIR env var
+
+**File Naming:** {export_type}_{YYYYMMDD}_{HHMMSS}_{uuid}.{format}
+Example: leads_20251207_143052_a1b2c3.csv
 
 **When to use:**
 - Exporting leads for external analysis
 - Creating reports for stakeholders
 - Backing up CRM data
-- Integrating with other systems`,
+- Integrating with other systems
+- Large dataset exports (400+ records)`,
       inputSchema: ExportDataSchema,
       annotations: {
-        readOnlyHint: true,
+        readOnlyHint: false, // Creates files on filesystem
         destructiveHint: false,
-        idempotentHint: true,
+        idempotentHint: false, // Creates new file each time
         openWorldHint: true
       }
     },
@@ -2744,12 +2755,34 @@ Creates an export file of the requested data type with optional filters. Returns
           { limit: params.max_records, order: 'id desc' }
         );
 
+        // Determine output directory (priority: param > env var > default)
+        const outputDir = params.output_dir
+          || process.env[EXPORT_CONFIG.OUTPUT_DIR_ENV_VAR]
+          || EXPORT_CONFIG.DEFAULT_OUTPUT_DIR;
+
+        // Create output directory if it doesn't exist
+        try {
+          fs.mkdirSync(outputDir, { recursive: true });
+        } catch (mkdirError) {
+          const errMsg = mkdirError instanceof Error ? mkdirError.message : 'Unknown error';
+          return {
+            isError: true,
+            content: [{ type: 'text', text: `Failed to create output directory "${outputDir}": ${errMsg}` }]
+          };
+        }
+
+        // Generate unique filename
+        const now = new Date();
+        const timestamp = now.toISOString().replace(/[-:]/g, '').replace('T', '_').substring(0, 15);
+        const uniqueId = randomUUID().substring(0, 6);
+        const filename = `${params.export_type}_${timestamp}_${uniqueId}.${params.format}`;
+        const filepath = path.join(outputDir, filename);
+
+        // Prepare export data
         let exportData: string;
-        let filename: string;
 
         if (params.format === 'json') {
           exportData = JSON.stringify(records, null, 2);
-          filename = `${params.export_type}_export_${new Date().toISOString().split('T')[0]}.json`;
         } else {
           // CSV format
           if (records.length === 0) {
@@ -2767,18 +2800,45 @@ Creates an export file of the requested data type with optional filters. Returns
             });
             exportData = headers + '\n' + rows.join('\n');
           }
-          filename = `${params.export_type}_export_${new Date().toISOString().split('T')[0]}.csv`;
         }
 
-        // Base64 encode using Node.js Buffer (available globally in Node environment)
-        const base64Data = globalThis.Buffer.from(exportData).toString('base64');
+        // Write file to filesystem
+        try {
+          fs.writeFileSync(filepath, exportData, 'utf-8');
+        } catch (writeError) {
+          const errMsg = writeError instanceof Error ? writeError.message : 'Unknown error';
+          return {
+            isError: true,
+            content: [{ type: 'text', text: `Failed to write export file "${filepath}": ${errMsg}` }]
+          };
+        }
+
+        // Get file size
+        const stats = fs.statSync(filepath);
+        const fileSizeBytes = stats.size;
+
+        // Check for size warning
+        const maxSizeEnv = process.env[EXPORT_CONFIG.MAX_SIZE_ENV_VAR];
+        const maxSizeBytes = maxSizeEnv
+          ? parseInt(maxSizeEnv, 10) * 1024 * 1024
+          : EXPORT_CONFIG.MAX_SIZE_WARNING_BYTES;
+
+        let warning: string | undefined;
+        if (fileSizeBytes > maxSizeBytes) {
+          const sizeMB = (fileSizeBytes / (1024 * 1024)).toFixed(2);
+          const thresholdMB = (maxSizeBytes / (1024 * 1024)).toFixed(0);
+          warning = `File size (${sizeMB} MB) exceeds ${thresholdMB} MB threshold. Consider using filters to reduce data size.`;
+        }
 
         const result: ExportResult = {
+          success: true,
+          filepath,
           filename,
           record_count: records.length,
-          file_size: exportData.length,
+          file_size_bytes: fileSizeBytes,
           format: params.format,
-          data: base64Data
+          message: `Export complete. File saved to ${filepath}`,
+          warning
         };
 
         const output = formatExportResult(result, ResponseFormat.MARKDOWN);
