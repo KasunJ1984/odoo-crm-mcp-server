@@ -1,1 +1,1 @@
-{"version":3,"file":"crm-tools.d.ts","sourceRoot":"","sources":["../../src/tools/crm-tools.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,SAAS,EAAE,MAAM,yCAAyC,CAAC;AA8CzE,wBAAgB,gBAAgB,CAAC,MAAM,EAAE,SAAS,GAAG,IAAI,CA29CxD"}
+{"version":3,"file":"crm-tools.d.ts","sourceRoot":"","sources":["../../src/tools/crm-tools.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,SAAS,EAAE,MAAM,yCAAyC,CAAC;AAyEzE,wBAAgB,gBAAgB,CAAC,MAAM,EAAE,SAAS,GAAG,IAAI,CAsqFxD"}

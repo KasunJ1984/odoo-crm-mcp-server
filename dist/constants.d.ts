@@ -8,6 +8,7 @@ export declare const CONTEXT_LIMITS: {
 };
 export declare const CRM_FIELDS: {
     LEAD_LIST: string[];
+    LEAD_LIST_EXTENDED: string[];
     LEAD_DETAIL: string[];
     PIPELINE_SUMMARY: string[];
     CONTACT_LIST: string[];
@@ -15,6 +16,11 @@ export declare const CRM_FIELDS: {
     LOST_OPPORTUNITY_LIST: string[];
     LOST_OPPORTUNITY_DETAIL: string[];
     LOST_REASON: string[];
+    WON_OPPORTUNITY_LIST: string[];
+    WON_OPPORTUNITY_DETAIL: string[];
+    ACTIVITY_DETAIL: string[];
+    USER_LIST: string[];
+    TEAM_LIST: string[];
 };
 export declare enum ResponseFormat {
     JSON = "json",

@@ -20,7 +20,17 @@ export const CRM_FIELDS = {
   // Minimal fields for list views (context-efficient)
   LEAD_LIST: [
     'id', 'name', 'contact_name', 'email_from', 'phone',
-    'expected_revenue', 'probability', 'stage_id', 'create_date'
+    'expected_revenue', 'probability', 'stage_id', 'create_date',
+    'user_id', 'team_id'
+  ] as string[],
+
+  // Extended fields for lead list (includes address, source, tags)
+  LEAD_LIST_EXTENDED: [
+    'id', 'name', 'contact_name', 'email_from', 'phone',
+    'expected_revenue', 'probability', 'stage_id', 'create_date',
+    'user_id', 'team_id', 'street', 'city', 'country_id',
+    'source_id', 'medium_id', 'campaign_id', 'tag_ids',
+    'date_deadline', 'partner_id', 'description'
   ] as string[],
   
   // Detailed fields for single record views
@@ -64,6 +74,35 @@ export const CRM_FIELDS = {
   // Lost reason fields
   LOST_REASON: [
     'id', 'name', 'active'
+  ] as string[],
+
+  // Won opportunity fields
+  WON_OPPORTUNITY_LIST: [
+    'id', 'name', 'contact_name', 'email_from', 'expected_revenue',
+    'stage_id', 'user_id', 'team_id', 'date_closed', 'create_date'
+  ] as string[],
+
+  // Won opportunity detail fields
+  WON_OPPORTUNITY_DETAIL: [
+    'id', 'name', 'contact_name', 'email_from', 'phone', 'expected_revenue',
+    'stage_id', 'user_id', 'team_id', 'partner_id', 'source_id',
+    'date_closed', 'create_date', 'description'
+  ] as string[],
+
+  // Activity detail fields
+  ACTIVITY_DETAIL: [
+    'id', 'summary', 'activity_type_id', 'date_deadline', 'user_id',
+    'res_id', 'state', 'note', 'res_name'
+  ] as string[],
+
+  // User fields
+  USER_LIST: [
+    'id', 'name', 'email', 'login', 'active'
+  ] as string[],
+
+  // Team fields
+  TEAM_LIST: [
+    'id', 'name', 'active', 'member_ids'
   ] as string[]
 };
 
