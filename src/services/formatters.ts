@@ -1,5 +1,5 @@
 import { CONTEXT_LIMITS, ResponseFormat } from '../constants.js';
-import type { CrmLead, PaginatedResponse, PipelineSummary, SalesAnalytics, ActivitySummary, ResPartner, LostReasonWithCount, LostAnalysisSummary, LostOpportunity, LostTrendsSummary } from '../types.js';
+import type { CrmLead, PaginatedResponse, PipelineSummary, SalesAnalytics, ActivitySummary, ResPartner, LostReasonWithCount, LostAnalysisSummary, LostOpportunity, LostTrendsSummary, WonOpportunity, WonAnalysisSummary, WonTrendsSummary, SalespersonWithStats, SalesTeamWithStats, PerformanceComparison, ActivityDetail, ExportResult, PipelineSummaryWithWeighted } from '../types.js';
 
 // Format currency value
 export function formatCurrency(value: number | undefined | null): string {
@@ -445,6 +445,413 @@ export function formatLostTrends(trends: LostTrendsSummary, format: ResponseForm
 
   if (trends.most_common_reason) {
     output += `- **Most Common Reason:** "${trends.most_common_reason}"\n`;
+  }
+
+  return output;
+}
+
+// Format won opportunities list
+export function formatWonOpportunitiesList(data: PaginatedResponse<WonOpportunity>, format: ResponseFormat): string {
+  if (format === ResponseFormat.JSON) {
+    return JSON.stringify(data, null, 2);
+  }
+
+  let output = `## Won Opportunities (${data.count} of ${data.total})\n\n`;
+
+  if (data.items.length === 0) {
+    output += '_No won opportunities found matching your criteria._\n';
+  } else {
+    for (let i = 0; i < data.items.length; i++) {
+      const opp = data.items[i];
+      output += `${data.offset + i + 1}. **${opp.name}** (ID: ${opp.id})\n`;
+      output += `   - Contact: ${opp.contact_name || '-'} | ${opp.email_from || '-'}\n`;
+      output += `   - Revenue: ${formatCurrency(opp.expected_revenue)} | Stage: ${getRelationName(opp.stage_id)}\n`;
+      output += `   - Salesperson: ${getRelationName(opp.user_id)} | Won: ${formatDate(opp.date_closed)}\n\n`;
+    }
+  }
+
+  output += '---\n';
+  output += `**Showing:** ${data.offset + 1}-${data.offset + data.count} of ${data.total}`;
+
+  if (data.has_more) {
+    output += ` | **Next page:** Use offset=${data.next_offset}`;
+  }
+
+  return output;
+}
+
+// Format won analysis summary
+export function formatWonAnalysis(analysis: WonAnalysisSummary, groupBy: string, format: ResponseFormat): string {
+  if (format === ResponseFormat.JSON) {
+    return JSON.stringify(analysis, null, 2);
+  }
+
+  let output = `## Won Opportunity Analysis\n\n`;
+
+  if (analysis.period) {
+    output += `**Period:** ${analysis.period}\n`;
+  }
+  output += `**Total Won:** ${analysis.total_won.toLocaleString()} opportunities | ${formatCurrency(analysis.total_won_revenue)}\n`;
+  output += `**Average Deal Size:** ${formatCurrency(analysis.avg_deal_size)}\n`;
+  if (analysis.avg_sales_cycle_days !== undefined) {
+    output += `**Avg Sales Cycle:** ${Math.round(analysis.avg_sales_cycle_days)} days\n`;
+  }
+  output += '\n';
+
+  // Grouped data based on group_by parameter
+  if (groupBy === 'salesperson' && analysis.by_salesperson && analysis.by_salesperson.length > 0) {
+    output += `### By Salesperson\n`;
+    output += '| Salesperson | Count | % of Total | Won Revenue | Avg Deal |\n';
+    output += '|-------------|-------|------------|-------------|----------|\n';
+    for (const item of analysis.by_salesperson) {
+      output += `| ${item.user_name} | ${item.count.toLocaleString()} | ${formatPercent(item.percentage)} | ${formatCurrency(item.won_revenue)} | ${formatCurrency(item.avg_deal)} |\n`;
+    }
+    output += '\n';
+  }
+
+  if (groupBy === 'team' && analysis.by_team && analysis.by_team.length > 0) {
+    output += `### By Team\n`;
+    output += '| Team | Count | % of Total | Won Revenue | Avg Deal |\n';
+    output += '|------|-------|------------|-------------|----------|\n';
+    for (const item of analysis.by_team) {
+      output += `| ${item.team_name} | ${item.count.toLocaleString()} | ${formatPercent(item.percentage)} | ${formatCurrency(item.won_revenue)} | ${formatCurrency(item.avg_deal)} |\n`;
+    }
+    output += '\n';
+  }
+
+  if (groupBy === 'stage' && analysis.by_stage && analysis.by_stage.length > 0) {
+    output += `### By Stage (when won)\n`;
+    output += '| Stage | Count | % of Total | Won Revenue | Avg Deal |\n';
+    output += '|-------|-------|------------|-------------|----------|\n';
+    for (const item of analysis.by_stage) {
+      output += `| ${item.stage_name} | ${item.count.toLocaleString()} | ${formatPercent(item.percentage)} | ${formatCurrency(item.won_revenue)} | ${formatCurrency(item.avg_deal)} |\n`;
+    }
+    output += '\n';
+  }
+
+  if (groupBy === 'month' && analysis.by_month && analysis.by_month.length > 0) {
+    output += `### By Month\n`;
+    output += '| Month | Count | Won Revenue |\n';
+    output += '|-------|-------|-------------|\n';
+    for (const item of analysis.by_month) {
+      output += `| ${item.month} | ${item.count.toLocaleString()} | ${formatCurrency(item.won_revenue)} |\n`;
+    }
+    output += '\n';
+  }
+
+  if (groupBy === 'source' && analysis.by_source && analysis.by_source.length > 0) {
+    output += `### By Source\n`;
+    output += '| Source | Count | % of Total | Won Revenue | Avg Deal |\n';
+    output += '|--------|-------|------------|-------------|----------|\n';
+    for (const item of analysis.by_source) {
+      output += `| ${item.source_name} | ${item.count.toLocaleString()} | ${formatPercent(item.percentage)} | ${formatCurrency(item.won_revenue)} | ${formatCurrency(item.avg_deal)} |\n`;
+    }
+    output += '\n';
+  }
+
+  // Top won opportunities
+  if (analysis.top_won && analysis.top_won.length > 0) {
+    output += `### Top ${analysis.top_won.length} Largest Won Opportunities\n`;
+    for (let i = 0; i < analysis.top_won.length; i++) {
+      const opp = analysis.top_won[i];
+      output += `${i + 1}. **${opp.name}** - ${formatCurrency(opp.revenue)} - ${opp.salesperson || 'Unassigned'} - Won: ${opp.date_closed}`;
+      if (opp.sales_cycle_days !== undefined) {
+        output += ` (${opp.sales_cycle_days} days)`;
+      }
+      output += '\n';
+    }
+  }
+
+  return output;
+}
+
+// Format won trends
+export function formatWonTrends(trends: WonTrendsSummary, format: ResponseFormat): string {
+  if (format === ResponseFormat.JSON) {
+    return JSON.stringify(trends, null, 2);
+  }
+
+  let output = `## Won Opportunity Trends\n\n`;
+  output += `**Period:** ${trends.period} | **Granularity:** ${trends.granularity}\n\n`;
+
+  // Trends table
+  const hasLostData = trends.periods.some(p => p.lost_count !== undefined);
+
+  if (hasLostData) {
+    output += '| Period | Won | Won Revenue | Lost | Lost Revenue | Win Rate | Avg Deal |\n';
+    output += '|--------|-----|-------------|------|--------------|----------|----------|\n';
+    for (const period of trends.periods) {
+      output += `| ${period.period_label} | ${period.won_count} | ${formatCurrency(period.won_revenue)} | ${period.lost_count || '-'} | ${formatCurrency(period.lost_revenue)} | ${formatPercent(period.win_rate)} | ${formatCurrency(period.avg_deal_size)} |\n`;
+    }
+  } else {
+    output += '| Period | Won | Won Revenue | Avg Deal |\n';
+    output += '|--------|-----|-------------|----------|\n';
+    for (const period of trends.periods) {
+      output += `| ${period.period_label} | ${period.won_count} | ${formatCurrency(period.won_revenue)} | ${formatCurrency(period.avg_deal_size)} |\n`;
+    }
+  }
+
+  output += '\n### Trend Insights\n';
+  output += `- **Avg Won per Period:** ${trends.avg_period_won.toFixed(0)} opportunities (${formatCurrency(trends.avg_period_revenue)})\n`;
+
+  if (trends.best_period) {
+    output += `- **Best Period:** ${trends.best_period.label} (${trends.best_period.won_count} won, ${formatCurrency(trends.best_period.won_revenue)}`;
+    if (trends.best_period.win_rate !== undefined) {
+      output += `, ${formatPercent(trends.best_period.win_rate)} win rate`;
+    }
+    output += ')\n';
+  }
+
+  if (trends.worst_period) {
+    output += `- **Worst Period:** ${trends.worst_period.label} (${trends.worst_period.won_count} won, ${formatCurrency(trends.worst_period.won_revenue)}`;
+    if (trends.worst_period.win_rate !== undefined) {
+      output += `, ${formatPercent(trends.worst_period.win_rate)} win rate`;
+    }
+    output += ')\n';
+  }
+
+  if (trends.avg_deal_size_trend) {
+    const trendEmoji = trends.avg_deal_size_trend === 'increasing' ? '📈' :
+                       trends.avg_deal_size_trend === 'decreasing' ? '📉' : '➡️';
+    output += `- **Deal Size Trend:** ${trendEmoji} ${trends.avg_deal_size_trend}\n`;
+  }
+
+  return output;
+}
+
+// Format salespeople list
+export function formatSalespeopleList(salespeople: SalespersonWithStats[], format: ResponseFormat): string {
+  if (format === ResponseFormat.JSON) {
+    return JSON.stringify({ salespeople }, null, 2);
+  }
+
+  let output = '## Salespeople\n\n';
+
+  if (salespeople.length === 0) {
+    output += '_No salespeople found._\n';
+    return output;
+  }
+
+  output += '| ID | Name | Email | Opportunities | Revenue | Won |\n';
+  output += '|----|------|-------|---------------|---------|-----|\n';
+
+  for (const sp of salespeople) {
+    output += `| ${sp.user_id} | ${sp.name} | ${sp.email || '-'} | ${sp.opportunity_count?.toLocaleString() || '-'} | ${formatCurrency(sp.active_revenue)} | ${sp.won_count?.toLocaleString() || '-'} |\n`;
+  }
+
+  return output;
+}
+
+// Format teams list
+export function formatTeamsList(teams: SalesTeamWithStats[], format: ResponseFormat): string {
+  if (format === ResponseFormat.JSON) {
+    return JSON.stringify({ teams }, null, 2);
+  }
+
+  let output = '## Sales Teams\n\n';
+
+  if (teams.length === 0) {
+    output += '_No sales teams found._\n';
+    return output;
+  }
+
+  output += '| ID | Team | Members | Opportunities | Pipeline Revenue | Won |\n';
+  output += '|----|------|---------|---------------|------------------|-----|\n';
+
+  for (const team of teams) {
+    output += `| ${team.team_id} | ${team.name} | ${team.member_count || '-'} | ${team.opportunity_count?.toLocaleString() || '-'} | ${formatCurrency(team.total_pipeline_revenue)} | ${team.won_count?.toLocaleString() || '-'} |\n`;
+  }
+
+  return output;
+}
+
+// Format performance comparison
+export function formatPerformanceComparison(comparison: PerformanceComparison, format: ResponseFormat): string {
+  if (format === ResponseFormat.JSON) {
+    return JSON.stringify(comparison, null, 2);
+  }
+
+  let output = `## Performance Comparison\n\n`;
+  output += `**Type:** ${comparison.compare_type}\n\n`;
+
+  if (comparison.compare_type === 'periods' && comparison.periods) {
+    output += '### Period Comparison\n';
+    output += '| Metric | Period 1 | Period 2 | Change |\n';
+    output += '|--------|----------|----------|--------|\n';
+
+    const p1 = comparison.periods[0];
+    const p2 = comparison.periods[1];
+    const change = comparison.period_change;
+
+    if (p1 && p2) {
+      output += `| **Period** | ${p1.label} | ${p2.label} | - |\n`;
+      output += `| Won Count | ${p1.won_count} | ${p2.won_count} | ${change?.won_count_change !== undefined ? `${change.won_count_change >= 0 ? '+' : ''}${formatPercent(change.won_count_change)}` : '-'} |\n`;
+      output += `| Won Revenue | ${formatCurrency(p1.won_revenue)} | ${formatCurrency(p2.won_revenue)} | ${change?.won_revenue_change !== undefined ? `${change.won_revenue_change >= 0 ? '+' : ''}${formatPercent(change.won_revenue_change)}` : '-'} |\n`;
+      output += `| Win Rate | ${formatPercent(p1.win_rate)} | ${formatPercent(p2.win_rate)} | ${change?.win_rate_change !== undefined ? `${change.win_rate_change >= 0 ? '+' : ''}${change.win_rate_change.toFixed(1)}pp` : '-'} |\n`;
+      output += `| Avg Deal Size | ${formatCurrency(p1.avg_deal_size)} | ${formatCurrency(p2.avg_deal_size)} | ${change?.avg_deal_size_change !== undefined ? `${change.avg_deal_size_change >= 0 ? '+' : ''}${formatPercent(change.avg_deal_size_change)}` : '-'} |\n`;
+      output += `| Avg Cycle Days | ${Math.round(p1.avg_cycle_days)} | ${Math.round(p2.avg_cycle_days)} | ${change?.avg_cycle_days_change !== undefined ? `${change.avg_cycle_days_change >= 0 ? '+' : ''}${formatPercent(change.avg_cycle_days_change)}` : '-'} |\n`;
+    }
+  } else if (comparison.entities) {
+    output += `### ${comparison.compare_type === 'salespeople' ? 'Salespeople' : 'Teams'} Comparison\n`;
+    output += '| Name | Won | Revenue | Win Rate | Avg Deal | Cycle Days |\n';
+    output += '|------|-----|---------|----------|----------|------------|\n';
+
+    for (const entity of comparison.entities) {
+      output += `| ${entity.name} | ${entity.won_count} | ${formatCurrency(entity.won_revenue)} | ${formatPercent(entity.win_rate)} | ${formatCurrency(entity.avg_deal_size)} | ${Math.round(entity.avg_cycle_days)} |\n`;
+    }
+
+    if (comparison.benchmarks) {
+      output += '\n### Benchmarks (Average)\n';
+      output += `- Won Count: ${comparison.benchmarks.avg_won_count.toFixed(1)}\n`;
+      output += `- Won Revenue: ${formatCurrency(comparison.benchmarks.avg_won_revenue)}\n`;
+      output += `- Win Rate: ${formatPercent(comparison.benchmarks.avg_win_rate)}\n`;
+      output += `- Avg Deal Size: ${formatCurrency(comparison.benchmarks.avg_deal_size)}\n`;
+      output += `- Avg Cycle Days: ${Math.round(comparison.benchmarks.avg_cycle_days)}\n`;
+    }
+  }
+
+  return output;
+}
+
+// Format activity search results
+export function formatActivityList(data: PaginatedResponse<ActivityDetail>, format: ResponseFormat): string {
+  if (format === ResponseFormat.JSON) {
+    return JSON.stringify(data, null, 2);
+  }
+
+  let output = `## CRM Activities (${data.count} of ${data.total})\n\n`;
+
+  if (data.items.length === 0) {
+    output += '_No activities found matching your criteria._\n';
+  } else {
+    for (let i = 0; i < data.items.length; i++) {
+      const activity = data.items[i];
+      const statusEmoji = activity.activity_status === 'overdue' ? '🔴' :
+                          activity.activity_status === 'today' ? '🟡' :
+                          activity.activity_status === 'upcoming' ? '🟢' : '✅';
+
+      output += `${data.offset + i + 1}. ${statusEmoji} **${activity.summary || 'No Summary'}** (ID: ${activity.id})\n`;
+      output += `   - Type: ${getRelationName(activity.activity_type_id)} | Due: ${formatDate(activity.date_deadline)}\n`;
+      output += `   - Assigned: ${getRelationName(activity.user_id)} | Status: ${activity.activity_status || '-'}\n`;
+      if (activity.res_name) {
+        output += `   - Linked to: ${activity.res_name} (ID: ${activity.res_id})\n`;
+      }
+      output += '\n';
+    }
+  }
+
+  output += '---\n';
+  output += `**Showing:** ${data.offset + 1}-${data.offset + data.count} of ${data.total}`;
+
+  if (data.has_more) {
+    output += ` | **Next page:** Use offset=${data.next_offset}`;
+  }
+
+  output += '\n\n**Legend:** 🔴 Overdue | 🟡 Today | 🟢 Upcoming | ✅ Done';
+
+  return output;
+}
+
+// Format export result
+export function formatExportResult(result: ExportResult, format: ResponseFormat): string {
+  if (format === ResponseFormat.JSON) {
+    return JSON.stringify(result, null, 2);
+  }
+
+  let output = `## Export Complete\n\n`;
+  output += `- **Filename:** ${result.filename}\n`;
+  output += `- **Records:** ${result.record_count.toLocaleString()}\n`;
+  output += `- **Format:** ${result.format.toUpperCase()}\n`;
+
+  if (result.file_size) {
+    const sizeKB = (result.file_size / 1024).toFixed(1);
+    output += `- **Size:** ${sizeKB} KB\n`;
+  }
+
+  if (result.download_url) {
+    output += `- **Download:** ${result.download_url}\n`;
+    if (result.expires_at) {
+      output += `- **Expires:** ${result.expires_at}\n`;
+    }
+  } else if (result.data) {
+    output += `\n**Data (Base64 encoded):**\n\`\`\`\n${result.data.substring(0, 500)}${result.data.length > 500 ? '...' : ''}\n\`\`\`\n`;
+  }
+
+  return output;
+}
+
+// Format pipeline summary with weighted revenue
+export function formatPipelineSummaryWithWeighted(stages: PipelineSummaryWithWeighted[], format: ResponseFormat): string {
+  if (format === ResponseFormat.JSON) {
+    return JSON.stringify({ stages }, null, 2);
+  }
+
+  let output = '## Pipeline Summary (with Weighted Revenue)\n\n';
+
+  const totalRevenue = stages.reduce((sum, s) => sum + s.total_revenue, 0);
+  const totalWeighted = stages.reduce((sum, s) => sum + s.weighted_revenue, 0);
+  const totalCount = stages.reduce((sum, s) => sum + s.count, 0);
+
+  output += `**Total Pipeline:** ${totalCount} opportunities | ${formatCurrency(totalRevenue)}\n`;
+  output += `**Total Weighted Pipeline:** ${formatCurrency(totalWeighted)}\n\n`;
+
+  output += '| Stage | Count | Revenue | Weighted | Avg Prob |\n';
+  output += '|-------|-------|---------|----------|----------|\n';
+
+  for (const stage of stages) {
+    output += `| ${stage.stage_name} | ${stage.count} | ${formatCurrency(stage.total_revenue)} | ${formatCurrency(stage.weighted_revenue)} | ${formatPercent(stage.avg_probability)} |\n`;
+  }
+
+  if (stages.some(s => s.opportunities && s.opportunities.length > 0)) {
+    output += '\n### Top Opportunities by Stage\n';
+    for (const stage of stages) {
+      if (stage.opportunities && stage.opportunities.length > 0) {
+        output += `\n**${stage.stage_name}:**\n`;
+        for (const opp of stage.opportunities) {
+          output += `- ${opp.name}: ${formatCurrency(opp.expected_revenue)} (${formatPercent(opp.probability)})\n`;
+        }
+      }
+    }
+  }
+
+  return output;
+}
+
+// Format extended lead list item (with additional fields)
+export function formatLeadListItemExtended(lead: CrmLead): string {
+  let output = `- **${lead.name}** (ID: ${lead.id})\n`;
+  output += `  Contact: ${lead.contact_name || '-'} | ${lead.email_from || '-'}\n`;
+  output += `  Stage: ${getRelationName(lead.stage_id)} | Revenue: ${formatCurrency(lead.expected_revenue)} | Prob: ${formatPercent(lead.probability)}\n`;
+  output += `  Salesperson: ${getRelationName(lead.user_id)} | Team: ${getRelationName(lead.team_id)}\n`;
+
+  // Address
+  const address = [lead.street, lead.city, getRelationName(lead.country_id)].filter(x => x && x !== '-').join(', ');
+  if (address) {
+    output += `  Location: ${address}\n`;
+  }
+
+  // Source/Medium/Campaign
+  const source = getRelationName(lead.source_id);
+  const medium = getRelationName(lead.medium_id);
+  const campaign = getRelationName(lead.campaign_id);
+  if (source !== '-' || medium !== '-' || campaign !== '-') {
+    output += `  Source: ${source} | Medium: ${medium} | Campaign: ${campaign}\n`;
+  }
+
+  // Deadline
+  if (lead.date_deadline) {
+    output += `  Deadline: ${formatDate(lead.date_deadline)}\n`;
+  }
+
+  // Partner
+  const partner = getRelationName(lead.partner_id);
+  if (partner !== '-') {
+    output += `  Partner: ${partner}\n`;
+  }
+
+  // Description (truncated)
+  if (lead.description) {
+    output += `  Notes: ${truncateText(lead.description, 150)}\n`;
   }
 
   return output;

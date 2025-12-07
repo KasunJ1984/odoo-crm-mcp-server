@@ -1,6 +1,6 @@
 import { getOdooClient } from '../services/odoo-client.js';
-import { formatLeadList, formatLeadDetail, formatPipelineSummary, formatSalesAnalytics, formatContactList, formatActivitySummary, getRelationName, formatLostReasonsList, formatLostAnalysis, formatLostOpportunitiesList, formatLostTrends, formatDate } from '../services/formatters.js';
-import { LeadSearchSchema, LeadDetailSchema, PipelineSummarySchema, SalesAnalyticsSchema, ContactSearchSchema, ActivitySummarySchema, StageListSchema, LostReasonsListSchema, LostAnalysisSchema, LostOpportunitiesSearchSchema, LostTrendsSchema } from '../schemas/index.js';
+import { formatLeadList, formatLeadDetail, formatPipelineSummary, formatSalesAnalytics, formatContactList, formatActivitySummary, getRelationName, formatLostReasonsList, formatLostAnalysis, formatLostOpportunitiesList, formatLostTrends, formatDate, formatWonOpportunitiesList, formatWonAnalysis, formatWonTrends, formatSalespeopleList, formatTeamsList, formatPerformanceComparison, formatActivityList, formatExportResult } from '../services/formatters.js';
+import { LeadSearchSchema, LeadDetailSchema, PipelineSummarySchema, SalesAnalyticsSchema, ContactSearchSchema, ActivitySummarySchema, StageListSchema, LostReasonsListSchema, LostAnalysisSchema, LostOpportunitiesSearchSchema, LostTrendsSchema, WonOpportunitiesSearchSchema, WonAnalysisSchema, WonTrendsSchema, SalespeopleListSchema, TeamsListSchema, ComparePerformanceSchema, ActivitySearchSchema, ExportDataSchema } from '../schemas/index.js';
 import { CRM_FIELDS, CONTEXT_LIMITS, ResponseFormat } from '../constants.js';
 // Register all CRM tools
 export function registerCrmTools(server) {
@@ -64,11 +64,24 @@ Returns paginated list with: name, contact, email, stage, revenue, probability`,
             if (params.min_probability !== undefined) {
                 domain.push(['probability', '>=', params.min_probability]);
             }
+            // Date filters based on date_field
+            const dateField = params.date_field || 'create_date';
             if (params.date_from) {
-                domain.push(['create_date', '>=', params.date_from]);
+                domain.push([dateField, '>=', params.date_from]);
             }
             if (params.date_to) {
-                domain.push(['create_date', '<=', params.date_to]);
+                domain.push([dateField, '<=', params.date_to]);
+            }
+            // Explicit date_closed filters
+            if (params.date_closed_from) {
+                domain.push(['date_closed', '>=', params.date_closed_from]);
+            }
+            if (params.date_closed_to) {
+                domain.push(['date_closed', '<=', params.date_closed_to]);
+            }
+            // Team filter
+            if (params.team_id) {
+                domain.push(['team_id', '=', params.team_id]);
             }
             // Get total count
             const total = await client.searchCount('crm.lead', domain);
@@ -1111,6 +1124,957 @@ Returns time-series data showing lost opportunities grouped by week, month, or q
             return {
                 isError: true,
                 content: [{ type: 'text', text: `Error fetching lost trends: ${message}` }]
+            };
+        }
+    });
+    // ============================================
+    // TOOL: Search Won Opportunities
+    // ============================================
+    server.registerTool('odoo_crm_search_won_opportunities', {
+        title: 'Search Won Opportunities',
+        description: `Search and browse won opportunities with filtering and pagination.
+
+Returns a paginated list of won opportunities with details including revenue, salesperson, and close date.
+
+**When to use:**
+- Finding specific won deals by name or contact
+- Reviewing won deals for a specific salesperson or time period
+- Finding the biggest deals that were won
+- Analyzing successful closes`,
+        inputSchema: WonOpportunitiesSearchSchema,
+        annotations: {
+            readOnlyHint: true,
+            destructiveHint: false,
+            idempotentHint: true,
+            openWorldHint: true
+        }
+    }, async (params) => {
+        try {
+            const client = getOdooClient();
+            // Build domain for won opportunities (probability = 100 or stage is_won = true)
+            const domain = [
+                ['type', '=', 'opportunity'],
+                ['probability', '=', 100]
+            ];
+            // Apply search filters
+            if (params.query) {
+                domain.push('|', '|', ['name', 'ilike', params.query], ['contact_name', 'ilike', params.query], ['email_from', 'ilike', params.query]);
+            }
+            if (params.user_id) {
+                domain.push(['user_id', '=', params.user_id]);
+            }
+            if (params.team_id) {
+                domain.push(['team_id', '=', params.team_id]);
+            }
+            if (params.stage_id) {
+                domain.push(['stage_id', '=', params.stage_id]);
+            }
+            if (params.date_from) {
+                domain.push(['date_closed', '>=', params.date_from]);
+            }
+            if (params.date_to) {
+                domain.push(['date_closed', '<=', params.date_to]);
+            }
+            if (params.min_revenue !== undefined) {
+                domain.push(['expected_revenue', '>=', params.min_revenue]);
+            }
+            if (params.max_revenue !== undefined) {
+                domain.push(['expected_revenue', '<=', params.max_revenue]);
+            }
+            // Get total count
+            const total = await client.searchCount('crm.lead', domain);
+            // Fetch records
+            const opportunities = await client.searchRead('crm.lead', domain, CRM_FIELDS.WON_OPPORTUNITY_LIST, {
+                offset: params.offset,
+                limit: params.limit,
+                order: `${params.order_by} ${params.order_dir}`
+            });
+            // Build paginated response
+            const response = {
+                total,
+                count: opportunities.length,
+                offset: params.offset,
+                limit: params.limit,
+                items: opportunities,
+                has_more: total > params.offset + opportunities.length,
+                next_offset: total > params.offset + opportunities.length ? params.offset + opportunities.length : undefined
+            };
+            const output = formatWonOpportunitiesList(response, params.response_format);
+            return {
+                content: [{ type: 'text', text: output }],
+                structuredContent: response
+            };
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            return {
+                isError: true,
+                content: [{ type: 'text', text: `Error searching won opportunities: ${message}` }]
+            };
+        }
+    });
+    // ============================================
+    // TOOL: Get Won Analysis
+    // ============================================
+    server.registerTool('odoo_crm_get_won_analysis', {
+        title: 'Get Won Opportunity Analysis',
+        description: `Get aggregated analytics on won opportunities - the primary tool for understanding successful deals.
+
+Returns summary statistics including total won count and revenue, breakdown by the selected grouping, and optionally the top largest won opportunities.
+
+**When to use:**
+- Understanding what drives successful deals (group by source)
+- Analyzing which salespeople have highest win rates (group by salesperson)
+- Finding which stages close most deals (group by stage)
+- Reviewing monthly success trends (group by month)`,
+        inputSchema: WonAnalysisSchema,
+        annotations: {
+            readOnlyHint: true,
+            destructiveHint: false,
+            idempotentHint: true,
+            openWorldHint: true
+        }
+    }, async (params) => {
+        try {
+            const client = getOdooClient();
+            // Build domain for won opportunities
+            const domain = [
+                ['type', '=', 'opportunity'],
+                ['probability', '=', 100]
+            ];
+            // Apply filters
+            if (params.date_from) {
+                domain.push(['date_closed', '>=', params.date_from]);
+            }
+            if (params.date_to) {
+                domain.push(['date_closed', '<=', params.date_to]);
+            }
+            if (params.user_id) {
+                domain.push(['user_id', '=', params.user_id]);
+            }
+            if (params.team_id) {
+                domain.push(['team_id', '=', params.team_id]);
+            }
+            if (params.min_revenue !== undefined) {
+                domain.push(['expected_revenue', '>=', params.min_revenue]);
+            }
+            // Get total won count and revenue
+            const wonTotals = await client.readGroup('crm.lead', domain, ['expected_revenue:sum', '__count'], []);
+            const totalWon = wonTotals[0]?.__count || 0;
+            const totalWonRevenue = wonTotals[0]?.expected_revenue || 0;
+            // Build analysis summary
+            const analysis = {
+                period: params.date_from || params.date_to
+                    ? `${params.date_from || 'Start'} to ${params.date_to || 'Now'}`
+                    : 'All Time',
+                total_won: totalWon,
+                total_won_revenue: totalWonRevenue,
+                avg_deal_size: totalWon > 0 ? totalWonRevenue / totalWon : 0
+            };
+            // Calculate average sales cycle
+            const wonOppsForCycle = await client.searchRead('crm.lead', domain, ['create_date', 'date_closed'], { limit: 1000 });
+            let totalCycleDays = 0;
+            let cycleCount = 0;
+            for (const opp of wonOppsForCycle) {
+                if (opp.create_date && opp.date_closed) {
+                    const createDate = new Date(opp.create_date);
+                    const closeDate = new Date(opp.date_closed);
+                    const days = Math.floor((closeDate.getTime() - createDate.getTime()) / (1000 * 60 * 60 * 24));
+                    if (days >= 0) {
+                        totalCycleDays += days;
+                        cycleCount++;
+                    }
+                }
+            }
+            if (cycleCount > 0) {
+                analysis.avg_sales_cycle_days = totalCycleDays / cycleCount;
+            }
+            // Get grouped data based on group_by parameter
+            if (params.group_by === 'salesperson') {
+                const byUser = await client.readGroup('crm.lead', domain, ['user_id', 'expected_revenue:sum', '__count'], ['user_id']);
+                analysis.by_salesperson = byUser.map(u => ({
+                    user_id: Array.isArray(u.user_id) ? u.user_id[0] : 0,
+                    user_name: Array.isArray(u.user_id) ? u.user_id[1] : 'Unassigned',
+                    count: u.__count || 0,
+                    percentage: totalWon > 0 ? (u.__count / totalWon) * 100 : 0,
+                    won_revenue: u.expected_revenue || 0,
+                    avg_deal: u.__count > 0 ? (u.expected_revenue || 0) / u.__count : 0
+                })).sort((a, b) => b.count - a.count);
+            }
+            if (params.group_by === 'team') {
+                const byTeam = await client.readGroup('crm.lead', domain, ['team_id', 'expected_revenue:sum', '__count'], ['team_id']);
+                analysis.by_team = byTeam.map(t => ({
+                    team_id: Array.isArray(t.team_id) ? t.team_id[0] : 0,
+                    team_name: Array.isArray(t.team_id) ? t.team_id[1] : 'No Team',
+                    count: t.__count || 0,
+                    percentage: totalWon > 0 ? (t.__count / totalWon) * 100 : 0,
+                    won_revenue: t.expected_revenue || 0,
+                    avg_deal: t.__count > 0 ? (t.expected_revenue || 0) / t.__count : 0
+                })).sort((a, b) => b.count - a.count);
+            }
+            if (params.group_by === 'stage') {
+                const byStage = await client.readGroup('crm.lead', domain, ['stage_id', 'expected_revenue:sum', '__count'], ['stage_id']);
+                analysis.by_stage = byStage.map(s => ({
+                    stage_id: Array.isArray(s.stage_id) ? s.stage_id[0] : 0,
+                    stage_name: Array.isArray(s.stage_id) ? s.stage_id[1] : 'Unknown',
+                    count: s.__count || 0,
+                    percentage: totalWon > 0 ? (s.__count / totalWon) * 100 : 0,
+                    won_revenue: s.expected_revenue || 0,
+                    avg_deal: s.__count > 0 ? (s.expected_revenue || 0) / s.__count : 0
+                })).sort((a, b) => b.count - a.count);
+            }
+            if (params.group_by === 'month') {
+                const byMonth = await client.readGroup('crm.lead', domain, ['date_closed:month', 'expected_revenue:sum', '__count'], ['date_closed:month']);
+                analysis.by_month = byMonth.map(m => ({
+                    month: m['date_closed:month'] || 'Unknown',
+                    count: m.__count || 0,
+                    won_revenue: m.expected_revenue || 0
+                }));
+            }
+            if (params.group_by === 'source') {
+                const bySource = await client.readGroup('crm.lead', domain, ['source_id', 'expected_revenue:sum', '__count'], ['source_id']);
+                analysis.by_source = bySource.map(s => ({
+                    source_id: Array.isArray(s.source_id) ? s.source_id[0] : 0,
+                    source_name: Array.isArray(s.source_id) ? s.source_id[1] : 'No Source',
+                    count: s.__count || 0,
+                    percentage: totalWon > 0 ? (s.__count / totalWon) * 100 : 0,
+                    won_revenue: s.expected_revenue || 0,
+                    avg_deal: s.__count > 0 ? (s.expected_revenue || 0) / s.__count : 0
+                })).sort((a, b) => b.count - a.count);
+            }
+            // Get top won opportunities
+            if (params.include_top_won > 0) {
+                const topWon = await client.searchRead('crm.lead', domain, ['id', 'name', 'expected_revenue', 'user_id', 'date_closed', 'create_date'], { limit: params.include_top_won, order: 'expected_revenue desc' });
+                analysis.top_won = topWon.map(o => {
+                    let cycleDays;
+                    if (o.create_date && o.date_closed) {
+                        const createDate = new Date(o.create_date);
+                        const closeDate = new Date(o.date_closed);
+                        cycleDays = Math.floor((closeDate.getTime() - createDate.getTime()) / (1000 * 60 * 60 * 24));
+                    }
+                    return {
+                        id: o.id,
+                        name: o.name,
+                        revenue: o.expected_revenue || 0,
+                        salesperson: getRelationName(o.user_id),
+                        date_closed: formatDate(o.date_closed),
+                        sales_cycle_days: cycleDays
+                    };
+                });
+            }
+            const output = formatWonAnalysis(analysis, params.group_by, params.response_format);
+            return {
+                content: [{ type: 'text', text: output }],
+                structuredContent: analysis
+            };
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            return {
+                isError: true,
+                content: [{ type: 'text', text: `Error fetching won analysis: ${message}` }]
+            };
+        }
+    });
+    // ============================================
+    // TOOL: Get Won Trends
+    // ============================================
+    server.registerTool('odoo_crm_get_won_trends', {
+        title: 'Get Won Opportunity Trends',
+        description: `Analyze won opportunity trends over time for pattern identification.
+
+Returns time-series data showing won opportunities grouped by week, month, or quarter, with optional win/loss comparison.
+
+**When to use:**
+- Identifying seasonal patterns in winning deals
+- Tracking if win rates are improving or worsening
+- Finding periods with exceptional success
+- Analyzing deal size trends over time`,
+        inputSchema: WonTrendsSchema,
+        annotations: {
+            readOnlyHint: true,
+            destructiveHint: false,
+            idempotentHint: true,
+            openWorldHint: true
+        }
+    }, async (params) => {
+        try {
+            const client = getOdooClient();
+            // Helper function to get period label from date string
+            const getPeriodLabel = (dateStr, granularity) => {
+                if (!dateStr)
+                    return 'Unknown';
+                const date = new Date(dateStr);
+                if (isNaN(date.getTime()))
+                    return 'Unknown';
+                const year = date.getFullYear();
+                const month = date.getMonth();
+                switch (granularity) {
+                    case 'week': {
+                        const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+                        d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+                        const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+                        const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+                        return `${year}-W${weekNo.toString().padStart(2, '0')}`;
+                    }
+                    case 'quarter': {
+                        const quarter = Math.floor(month / 3) + 1;
+                        return `${year}-Q${quarter}`;
+                    }
+                    case 'month':
+                    default: {
+                        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                            'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                        return `${monthNames[month]} ${year}`;
+                    }
+                }
+            };
+            // Build domain for won opportunities
+            const wonDomain = [
+                ['type', '=', 'opportunity'],
+                ['probability', '=', 100]
+            ];
+            if (params.date_from)
+                wonDomain.push(['date_closed', '>=', params.date_from]);
+            if (params.date_to)
+                wonDomain.push(['date_closed', '<=', params.date_to]);
+            if (params.user_id)
+                wonDomain.push(['user_id', '=', params.user_id]);
+            if (params.team_id)
+                wonDomain.push(['team_id', '=', params.team_id]);
+            // Fetch won opportunities
+            const wonOpps = await client.searchRead('crm.lead', wonDomain, ['id', 'date_closed', 'expected_revenue'], { limit: 10000, order: 'date_closed desc' });
+            // Group won opportunities by period
+            const wonByPeriodMap = new Map();
+            for (const opp of wonOpps) {
+                const periodLabel = getPeriodLabel(opp.date_closed, params.granularity);
+                if (!wonByPeriodMap.has(periodLabel)) {
+                    wonByPeriodMap.set(periodLabel, { count: 0, revenue: 0 });
+                }
+                const periodData = wonByPeriodMap.get(periodLabel);
+                periodData.count++;
+                periodData.revenue += opp.expected_revenue || 0;
+            }
+            // Fetch lost opportunities if comparison requested
+            const lostByPeriodMap = new Map();
+            if (params.compare_to_lost) {
+                const lostDomain = [
+                    ['type', '=', 'opportunity'],
+                    '|',
+                    '&', ['active', '=', false], ['probability', '=', 0],
+                    ['lost_reason_id', '!=', false]
+                ];
+                if (params.date_from)
+                    lostDomain.push(['date_closed', '>=', params.date_from]);
+                if (params.date_to)
+                    lostDomain.push(['date_closed', '<=', params.date_to]);
+                if (params.user_id)
+                    lostDomain.push(['user_id', '=', params.user_id]);
+                if (params.team_id)
+                    lostDomain.push(['team_id', '=', params.team_id]);
+                const lostOpps = await client.searchRead('crm.lead', lostDomain, ['id', 'date_closed', 'expected_revenue'], { limit: 10000, order: 'date_closed desc' });
+                for (const opp of lostOpps) {
+                    const periodLabel = getPeriodLabel(opp.date_closed, params.granularity);
+                    if (!lostByPeriodMap.has(periodLabel)) {
+                        lostByPeriodMap.set(periodLabel, { count: 0, revenue: 0 });
+                    }
+                    const periodData = lostByPeriodMap.get(periodLabel);
+                    periodData.count++;
+                    periodData.revenue += opp.expected_revenue || 0;
+                }
+            }
+            // Process into periods array
+            const periods = [];
+            const sortedPeriods = Array.from(wonByPeriodMap.keys()).sort();
+            for (const periodLabel of sortedPeriods) {
+                const wonData = wonByPeriodMap.get(periodLabel);
+                const lostData = lostByPeriodMap.get(periodLabel);
+                const lostCount = params.compare_to_lost ? (lostData?.count || 0) : undefined;
+                const lostRevenue = params.compare_to_lost ? (lostData?.revenue || 0) : undefined;
+                const winRate = params.compare_to_lost && lostCount !== undefined && (wonData.count + lostCount) > 0
+                    ? (wonData.count / (wonData.count + lostCount)) * 100
+                    : undefined;
+                periods.push({
+                    period_label: periodLabel,
+                    won_count: wonData.count,
+                    won_revenue: wonData.revenue,
+                    lost_count: lostCount,
+                    lost_revenue: lostRevenue,
+                    win_rate: winRate,
+                    avg_deal_size: wonData.count > 0 ? wonData.revenue / wonData.count : 0
+                });
+            }
+            // Calculate insights
+            const totalWon = periods.reduce((sum, p) => sum + p.won_count, 0);
+            const totalWonRevenue = periods.reduce((sum, p) => sum + p.won_revenue, 0);
+            const avgWon = periods.length > 0 ? totalWon / periods.length : 0;
+            const avgRevenue = periods.length > 0 ? totalWonRevenue / periods.length : 0;
+            // Find best and worst periods
+            const sortedByWon = [...periods].sort((a, b) => b.won_count - a.won_count);
+            const bestPeriod = sortedByWon[0];
+            const worstPeriod = sortedByWon[sortedByWon.length - 1];
+            // Calculate deal size trend
+            let avgDealSizeTrend;
+            if (periods.length >= 2) {
+                const firstHalf = periods.slice(0, Math.floor(periods.length / 2));
+                const secondHalf = periods.slice(Math.floor(periods.length / 2));
+                const firstHalfAvg = firstHalf.reduce((sum, p) => sum + p.avg_deal_size, 0) / firstHalf.length;
+                const secondHalfAvg = secondHalf.reduce((sum, p) => sum + p.avg_deal_size, 0) / secondHalf.length;
+                const changePercent = firstHalfAvg > 0 ? ((secondHalfAvg - firstHalfAvg) / firstHalfAvg) * 100 : 0;
+                if (changePercent > 10)
+                    avgDealSizeTrend = 'increasing';
+                else if (changePercent < -10)
+                    avgDealSizeTrend = 'decreasing';
+                else
+                    avgDealSizeTrend = 'stable';
+            }
+            const trends = {
+                period: params.date_from || params.date_to
+                    ? `${params.date_from || 'Start'} to ${params.date_to || 'Now'}`
+                    : 'All Time',
+                granularity: params.granularity,
+                periods,
+                avg_period_won: avgWon,
+                avg_period_revenue: avgRevenue,
+                best_period: bestPeriod ? {
+                    label: bestPeriod.period_label,
+                    won_count: bestPeriod.won_count,
+                    won_revenue: bestPeriod.won_revenue,
+                    win_rate: bestPeriod.win_rate
+                } : undefined,
+                worst_period: worstPeriod && worstPeriod !== bestPeriod ? {
+                    label: worstPeriod.period_label,
+                    won_count: worstPeriod.won_count,
+                    won_revenue: worstPeriod.won_revenue,
+                    win_rate: worstPeriod.win_rate
+                } : undefined,
+                avg_deal_size_trend: avgDealSizeTrend
+            };
+            const output = formatWonTrends(trends, params.response_format);
+            return {
+                content: [{ type: 'text', text: output }],
+                structuredContent: trends
+            };
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            return {
+                isError: true,
+                content: [{ type: 'text', text: `Error fetching won trends: ${message}` }]
+            };
+        }
+    });
+    // ============================================
+    // TOOL: List Salespeople
+    // ============================================
+    server.registerTool('odoo_crm_list_salespeople', {
+        title: 'List Salespeople',
+        description: `Retrieve all salespeople (users) who have CRM opportunities assigned.
+
+Returns a list of users with their IDs and optionally their opportunity statistics.
+
+**When to use:**
+- Getting user IDs for filtering other queries
+- Comparing salesperson workload
+- Finding active salespeople in CRM`,
+        inputSchema: SalespeopleListSchema,
+        annotations: {
+            readOnlyHint: true,
+            destructiveHint: false,
+            idempotentHint: true,
+            openWorldHint: true
+        }
+    }, async (params) => {
+        try {
+            const client = getOdooClient();
+            // Get all users who have opportunities assigned
+            const userStats = await client.readGroup('crm.lead', [['user_id', '!=', false], ['type', '=', 'opportunity'], ['active', '=', true]], ['user_id', 'expected_revenue:sum', '__count'], ['user_id']);
+            // Get won stats
+            const wonStats = await client.readGroup('crm.lead', [['user_id', '!=', false], ['probability', '=', 100]], ['user_id', 'expected_revenue:sum', '__count'], ['user_id']);
+            const salespeople = [];
+            for (const stat of userStats) {
+                if (!Array.isArray(stat.user_id))
+                    continue;
+                const userId = stat.user_id[0];
+                const userName = stat.user_id[1];
+                const wonStat = wonStats.find(w => Array.isArray(w.user_id) && w.user_id[0] === userId);
+                const spWithStats = {
+                    user_id: userId,
+                    name: userName
+                };
+                if (params.include_stats) {
+                    spWithStats.opportunity_count = stat.__count || 0;
+                    spWithStats.active_revenue = stat.expected_revenue || 0;
+                    spWithStats.won_count = wonStat?.__count || 0;
+                    spWithStats.won_revenue = wonStat?.expected_revenue || 0;
+                }
+                salespeople.push(spWithStats);
+            }
+            // Sort by opportunity count
+            salespeople.sort((a, b) => (b.opportunity_count || 0) - (a.opportunity_count || 0));
+            const output = formatSalespeopleList(salespeople, params.response_format);
+            return {
+                content: [{ type: 'text', text: output }],
+                structuredContent: { salespeople }
+            };
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            return {
+                isError: true,
+                content: [{ type: 'text', text: `Error fetching salespeople: ${message}` }]
+            };
+        }
+    });
+    // ============================================
+    // TOOL: List Teams
+    // ============================================
+    server.registerTool('odoo_crm_list_teams', {
+        title: 'List Sales Teams',
+        description: `Retrieve all sales teams with their statistics.
+
+Returns a list of teams with their IDs and optionally member count and opportunity statistics.
+
+**When to use:**
+- Getting team IDs for filtering other queries
+- Comparing team performance
+- Understanding team structure`,
+        inputSchema: TeamsListSchema,
+        annotations: {
+            readOnlyHint: true,
+            destructiveHint: false,
+            idempotentHint: true,
+            openWorldHint: true
+        }
+    }, async (params) => {
+        try {
+            const client = getOdooClient();
+            // Get all teams
+            const teamsData = await client.searchRead('crm.team', [['active', '=', true]], CRM_FIELDS.TEAM_LIST, { order: 'name asc' });
+            const teams = [];
+            if (params.include_stats) {
+                // Get opportunity stats per team
+                const teamStats = await client.readGroup('crm.lead', [['team_id', '!=', false], ['type', '=', 'opportunity'], ['active', '=', true]], ['team_id', 'expected_revenue:sum', '__count'], ['team_id']);
+                // Get won stats per team
+                const wonStats = await client.readGroup('crm.lead', [['team_id', '!=', false], ['probability', '=', 100]], ['team_id', 'expected_revenue:sum', '__count'], ['team_id']);
+                for (const team of teamsData) {
+                    const stat = teamStats.find(s => Array.isArray(s.team_id) && s.team_id[0] === team.id);
+                    const wonStat = wonStats.find(w => Array.isArray(w.team_id) && w.team_id[0] === team.id);
+                    teams.push({
+                        team_id: team.id,
+                        name: team.name,
+                        member_count: team.member_ids?.length,
+                        opportunity_count: stat?.__count || 0,
+                        total_pipeline_revenue: stat?.expected_revenue || 0,
+                        won_count: wonStat?.__count || 0,
+                        won_revenue: wonStat?.expected_revenue || 0
+                    });
+                }
+            }
+            else {
+                for (const team of teamsData) {
+                    teams.push({
+                        team_id: team.id,
+                        name: team.name,
+                        member_count: team.member_ids?.length
+                    });
+                }
+            }
+            // Sort by opportunity count
+            teams.sort((a, b) => (b.opportunity_count || 0) - (a.opportunity_count || 0));
+            const output = formatTeamsList(teams, params.response_format);
+            return {
+                content: [{ type: 'text', text: output }],
+                structuredContent: { teams }
+            };
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            return {
+                isError: true,
+                content: [{ type: 'text', text: `Error fetching teams: ${message}` }]
+            };
+        }
+    });
+    // ============================================
+    // TOOL: Compare Performance
+    // ============================================
+    server.registerTool('odoo_crm_compare_performance', {
+        title: 'Compare Performance',
+        description: `Compare performance between salespeople, teams, or time periods.
+
+Returns side-by-side comparison of key metrics including won count, revenue, win rate, and sales cycle.
+
+**When to use:**
+- Comparing salespeople against each other
+- Comparing team performance
+- Analyzing period-over-period changes
+- Benchmarking against averages`,
+        inputSchema: ComparePerformanceSchema,
+        annotations: {
+            readOnlyHint: true,
+            destructiveHint: false,
+            idempotentHint: true,
+            openWorldHint: true
+        }
+    }, async (params) => {
+        try {
+            const client = getOdooClient();
+            const comparison = {
+                compare_type: params.compare_type
+            };
+            if (params.compare_type === 'periods') {
+                // Period comparison
+                if (!params.period1_start || !params.period1_end || !params.period2_start || !params.period2_end) {
+                    return {
+                        isError: true,
+                        content: [{ type: 'text', text: 'Period comparison requires period1_start, period1_end, period2_start, and period2_end' }]
+                    };
+                }
+                const getMetricsForPeriod = async (start, end) => {
+                    const wonDomain = [
+                        ['probability', '=', 100],
+                        ['date_closed', '>=', start],
+                        ['date_closed', '<=', end]
+                    ];
+                    const lostDomain = [
+                        '|',
+                        '&', ['active', '=', false], ['probability', '=', 0],
+                        ['lost_reason_id', '!=', false],
+                        ['date_closed', '>=', start],
+                        ['date_closed', '<=', end]
+                    ];
+                    const wonTotals = await client.readGroup('crm.lead', wonDomain, ['expected_revenue:sum', '__count'], []);
+                    const lostTotals = await client.readGroup('crm.lead', lostDomain, ['__count'], []);
+                    const wonCount = wonTotals[0]?.__count || 0;
+                    const wonRevenue = wonTotals[0]?.expected_revenue || 0;
+                    const lostCount = lostTotals[0]?.__count || 0;
+                    const winRate = (wonCount + lostCount) > 0 ? (wonCount / (wonCount + lostCount)) * 100 : 0;
+                    // Get cycle days
+                    const wonOpps = await client.searchRead('crm.lead', wonDomain, ['create_date', 'date_closed'], { limit: 500 });
+                    let totalCycle = 0, cycleCount = 0;
+                    for (const opp of wonOpps) {
+                        if (opp.create_date && opp.date_closed) {
+                            const days = Math.floor((new Date(opp.date_closed).getTime() - new Date(opp.create_date).getTime()) / (1000 * 60 * 60 * 24));
+                            if (days >= 0) {
+                                totalCycle += days;
+                                cycleCount++;
+                            }
+                        }
+                    }
+                    return {
+                        won_count: wonCount,
+                        won_revenue: wonRevenue,
+                        win_rate: winRate,
+                        avg_deal_size: wonCount > 0 ? wonRevenue / wonCount : 0,
+                        avg_cycle_days: cycleCount > 0 ? totalCycle / cycleCount : 0
+                    };
+                };
+                const p1Metrics = await getMetricsForPeriod(params.period1_start, params.period1_end);
+                const p2Metrics = await getMetricsForPeriod(params.period2_start, params.period2_end);
+                comparison.periods = [
+                    { label: `${params.period1_start} to ${params.period1_end}`, start: params.period1_start, end: params.period1_end, ...p1Metrics },
+                    { label: `${params.period2_start} to ${params.period2_end}`, start: params.period2_start, end: params.period2_end, ...p2Metrics }
+                ];
+                // Calculate changes
+                comparison.period_change = {
+                    won_count_change: p1Metrics.won_count > 0 ? ((p2Metrics.won_count - p1Metrics.won_count) / p1Metrics.won_count) * 100 : 0,
+                    won_revenue_change: p1Metrics.won_revenue > 0 ? ((p2Metrics.won_revenue - p1Metrics.won_revenue) / p1Metrics.won_revenue) * 100 : 0,
+                    win_rate_change: p2Metrics.win_rate - p1Metrics.win_rate,
+                    avg_deal_size_change: p1Metrics.avg_deal_size > 0 ? ((p2Metrics.avg_deal_size - p1Metrics.avg_deal_size) / p1Metrics.avg_deal_size) * 100 : 0,
+                    avg_cycle_days_change: p1Metrics.avg_cycle_days > 0 ? ((p2Metrics.avg_cycle_days - p1Metrics.avg_cycle_days) / p1Metrics.avg_cycle_days) * 100 : 0
+                };
+            }
+            else {
+                // Salespeople or Teams comparison
+                const groupField = params.compare_type === 'salespeople' ? 'user_id' : 'team_id';
+                // Get won stats
+                const wonStats = await client.readGroup('crm.lead', [[groupField, '!=', false], ['probability', '=', 100]], [groupField, 'expected_revenue:sum', '__count'], [groupField]);
+                // Get lost stats
+                const lostStats = await client.readGroup('crm.lead', [[groupField, '!=', false], '|', '&', ['active', '=', false], ['probability', '=', 0], ['lost_reason_id', '!=', false]], [groupField, '__count'], [groupField]);
+                const entities = [];
+                for (const stat of wonStats) {
+                    const fieldValue = stat[groupField];
+                    if (!Array.isArray(fieldValue))
+                        continue;
+                    // Filter by entity_ids if specified
+                    if (params.entity_ids && params.entity_ids.length > 0 && !params.entity_ids.includes(fieldValue[0])) {
+                        continue;
+                    }
+                    const lostStat = lostStats.find(l => {
+                        const lf = l[groupField];
+                        return Array.isArray(lf) && lf[0] === fieldValue[0];
+                    });
+                    const wonCount = stat.__count || 0;
+                    const lostCount = lostStat?.__count || 0;
+                    entities.push({
+                        id: fieldValue[0],
+                        name: fieldValue[1],
+                        won_count: wonCount,
+                        won_revenue: stat.expected_revenue || 0,
+                        win_rate: (wonCount + lostCount) > 0 ? (wonCount / (wonCount + lostCount)) * 100 : 0,
+                        avg_deal_size: wonCount > 0 ? (stat.expected_revenue || 0) / wonCount : 0,
+                        avg_cycle_days: 0 // Would need additional query to calculate
+                    });
+                }
+                comparison.entities = entities.sort((a, b) => b.won_revenue - a.won_revenue);
+                // Calculate benchmarks
+                if (entities.length > 0) {
+                    comparison.benchmarks = {
+                        avg_won_count: entities.reduce((s, e) => s + e.won_count, 0) / entities.length,
+                        avg_won_revenue: entities.reduce((s, e) => s + e.won_revenue, 0) / entities.length,
+                        avg_win_rate: entities.reduce((s, e) => s + e.win_rate, 0) / entities.length,
+                        avg_deal_size: entities.reduce((s, e) => s + e.avg_deal_size, 0) / entities.length,
+                        avg_cycle_days: entities.reduce((s, e) => s + e.avg_cycle_days, 0) / entities.length
+                    };
+                }
+            }
+            const output = formatPerformanceComparison(comparison, params.response_format);
+            return {
+                content: [{ type: 'text', text: output }],
+                structuredContent: comparison
+            };
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            return {
+                isError: true,
+                content: [{ type: 'text', text: `Error comparing performance: ${message}` }]
+            };
+        }
+    });
+    // ============================================
+    // TOOL: Search Activities
+    // ============================================
+    server.registerTool('odoo_crm_search_activities', {
+        title: 'Search CRM Activities',
+        description: `Search and list individual CRM activities (calls, meetings, tasks, emails).
+
+Returns a paginated list of activities with details including type, due date, status, and linked opportunity.
+
+**When to use:**
+- Finding specific activities by type or status
+- Reviewing overdue activities
+- Checking upcoming activities for a user
+- Finding activities linked to a specific opportunity`,
+        inputSchema: ActivitySearchSchema,
+        annotations: {
+            readOnlyHint: true,
+            destructiveHint: false,
+            idempotentHint: true,
+            openWorldHint: true
+        }
+    }, async (params) => {
+        try {
+            const client = getOdooClient();
+            const today = new Date().toISOString().split('T')[0];
+            // Build domain
+            const domain = [['res_model', '=', 'crm.lead']];
+            if (params.user_id) {
+                domain.push(['user_id', '=', params.user_id]);
+            }
+            if (params.lead_id) {
+                domain.push(['res_id', '=', params.lead_id]);
+            }
+            if (params.date_from) {
+                domain.push(['date_deadline', '>=', params.date_from]);
+            }
+            if (params.date_to) {
+                domain.push(['date_deadline', '<=', params.date_to]);
+            }
+            // Activity type filter
+            if (params.activity_type !== 'all') {
+                domain.push(['activity_type_id.name', 'ilike', params.activity_type]);
+            }
+            // Status filter
+            if (params.status !== 'all') {
+                if (params.status === 'overdue') {
+                    domain.push(['date_deadline', '<', today]);
+                }
+                else if (params.status === 'today') {
+                    domain.push(['date_deadline', '=', today]);
+                }
+                else if (params.status === 'upcoming') {
+                    domain.push(['date_deadline', '>', today]);
+                }
+                // 'done' status would require checking activity state
+            }
+            // Get total count
+            const total = await client.searchCount('mail.activity', domain);
+            // Fetch activities
+            const activities = await client.searchRead('mail.activity', domain, CRM_FIELDS.ACTIVITY_DETAIL, {
+                offset: params.offset,
+                limit: params.limit,
+                order: 'date_deadline asc'
+            });
+            // Calculate status for each activity
+            for (const activity of activities) {
+                if (activity.date_deadline) {
+                    if (activity.date_deadline < today) {
+                        activity.activity_status = 'overdue';
+                    }
+                    else if (activity.date_deadline === today) {
+                        activity.activity_status = 'today';
+                    }
+                    else {
+                        activity.activity_status = 'upcoming';
+                    }
+                }
+            }
+            const response = {
+                total,
+                count: activities.length,
+                offset: params.offset,
+                limit: params.limit,
+                items: activities,
+                has_more: total > params.offset + activities.length,
+                next_offset: total > params.offset + activities.length ? params.offset + activities.length : undefined
+            };
+            const output = formatActivityList(response, params.response_format);
+            return {
+                content: [{ type: 'text', text: output }],
+                structuredContent: response
+            };
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            return {
+                isError: true,
+                content: [{ type: 'text', text: `Error searching activities: ${message}` }]
+            };
+        }
+    });
+    // ============================================
+    // TOOL: Export Data
+    // ============================================
+    server.registerTool('odoo_crm_export_data', {
+        title: 'Export CRM Data',
+        description: `Generate CSV/JSON export of CRM data.
+
+Creates an export file of the requested data type with optional filters. Returns base64 encoded data for small exports.
+
+**When to use:**
+- Exporting leads for external analysis
+- Creating reports for stakeholders
+- Backing up CRM data
+- Integrating with other systems`,
+        inputSchema: ExportDataSchema,
+        annotations: {
+            readOnlyHint: true,
+            destructiveHint: false,
+            idempotentHint: true,
+            openWorldHint: true
+        }
+    }, async (params) => {
+        try {
+            const client = getOdooClient();
+            let model;
+            let domain = [];
+            let fields;
+            // Configure based on export type
+            switch (params.export_type) {
+                case 'leads':
+                    model = 'crm.lead';
+                    domain = [['type', '=', 'opportunity'], ['active', '=', true]];
+                    fields = params.fields || CRM_FIELDS.LEAD_LIST_EXTENDED;
+                    break;
+                case 'won':
+                    model = 'crm.lead';
+                    domain = [['probability', '=', 100]];
+                    fields = params.fields || CRM_FIELDS.WON_OPPORTUNITY_DETAIL;
+                    break;
+                case 'lost':
+                    model = 'crm.lead';
+                    domain = ['|', '&', ['active', '=', false], ['probability', '=', 0], ['lost_reason_id', '!=', false]];
+                    fields = params.fields || CRM_FIELDS.LOST_OPPORTUNITY_DETAIL;
+                    break;
+                case 'contacts':
+                    model = 'res.partner';
+                    domain = [];
+                    fields = params.fields || CRM_FIELDS.CONTACT_LIST;
+                    break;
+                case 'activities':
+                    model = 'mail.activity';
+                    domain = [['res_model', '=', 'crm.lead']];
+                    fields = params.fields || CRM_FIELDS.ACTIVITY_DETAIL;
+                    break;
+                default:
+                    return {
+                        isError: true,
+                        content: [{ type: 'text', text: `Unknown export type: ${params.export_type}` }]
+                    };
+            }
+            // Apply filters
+            if (params.filters) {
+                if (params.filters.user_id)
+                    domain.push(['user_id', '=', params.filters.user_id]);
+                if (params.filters.team_id)
+                    domain.push(['team_id', '=', params.filters.team_id]);
+                if (params.filters.stage_id)
+                    domain.push(['stage_id', '=', params.filters.stage_id]);
+                if (params.filters.date_from)
+                    domain.push(['create_date', '>=', params.filters.date_from]);
+                if (params.filters.date_to)
+                    domain.push(['create_date', '<=', params.filters.date_to]);
+                if (params.filters.min_revenue !== undefined)
+                    domain.push(['expected_revenue', '>=', params.filters.min_revenue]);
+                if (params.filters.max_revenue !== undefined)
+                    domain.push(['expected_revenue', '<=', params.filters.max_revenue]);
+                if (params.filters.query) {
+                    domain.push('|', '|', ['name', 'ilike', params.filters.query], ['contact_name', 'ilike', params.filters.query], ['email_from', 'ilike', params.filters.query]);
+                }
+            }
+            // Fetch data
+            const records = await client.searchRead(model, domain, fields, { limit: params.max_records, order: 'id desc' });
+            let exportData;
+            let filename;
+            if (params.format === 'json') {
+                exportData = JSON.stringify(records, null, 2);
+                filename = `${params.export_type}_export_${new Date().toISOString().split('T')[0]}.json`;
+            }
+            else {
+                // CSV format
+                if (records.length === 0) {
+                    exportData = fields.join(',') + '\n';
+                }
+                else {
+                    const headers = fields.join(',');
+                    const rows = records.map(record => {
+                        return fields.map(field => {
+                            const value = record[field];
+                            if (value === null || value === undefined)
+                                return '';
+                            if (Array.isArray(value))
+                                return `"${String(value[1] || value[0]).replace(/"/g, '""')}"`;
+                            if (typeof value === 'string')
+                                return `"${value.replace(/"/g, '""')}"`;
+                            return String(value);
+                        }).join(',');
+                    });
+                    exportData = headers + '\n' + rows.join('\n');
+                }
+                filename = `${params.export_type}_export_${new Date().toISOString().split('T')[0]}.csv`;
+            }
+            // Base64 encode using Node.js Buffer (available globally in Node environment)
+            const base64Data = globalThis.Buffer.from(exportData).toString('base64');
+            const result = {
+                filename,
+                record_count: records.length,
+                file_size: exportData.length,
+                format: params.format,
+                data: base64Data
+            };
+            const output = formatExportResult(result, ResponseFormat.MARKDOWN);
+            return {
+                content: [{ type: 'text', text: output }],
+                structuredContent: result
+            };
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            return {
+                isError: true,
+                content: [{ type: 'text', text: `Error exporting data: ${message}` }]
             };
         }
     });
