@@ -1,5 +1,5 @@
 import { ResponseFormat } from '../constants.js';
-import type { CrmLead, PaginatedResponse, PipelineSummary, SalesAnalytics, ActivitySummary, ResPartner, LostReasonWithCount, LostAnalysisSummary, LostOpportunity, LostTrendsSummary } from '../types.js';
+import type { CrmLead, PaginatedResponse, PipelineSummary, SalesAnalytics, ActivitySummary, ResPartner, LostReasonWithCount, LostAnalysisSummary, LostOpportunity, LostTrendsSummary, WonOpportunity, WonAnalysisSummary, WonTrendsSummary, SalespersonWithStats, SalesTeamWithStats, PerformanceComparison, ActivityDetail, ExportResult, PipelineSummaryWithWeighted } from '../types.js';
 export declare function formatCurrency(value: number | undefined | null): string;
 export declare function formatPercent(value: number | undefined | null): string;
 export declare function formatDate(dateStr: string | undefined | null): string;
@@ -20,4 +20,14 @@ export declare function formatLostReasonsList(reasons: LostReasonWithCount[], fo
 export declare function formatLostAnalysis(analysis: LostAnalysisSummary, groupBy: string, format: ResponseFormat): string;
 export declare function formatLostOpportunitiesList(data: PaginatedResponse<LostOpportunity>, format: ResponseFormat): string;
 export declare function formatLostTrends(trends: LostTrendsSummary, format: ResponseFormat): string;
+export declare function formatWonOpportunitiesList(data: PaginatedResponse<WonOpportunity>, format: ResponseFormat): string;
+export declare function formatWonAnalysis(analysis: WonAnalysisSummary, groupBy: string, format: ResponseFormat): string;
+export declare function formatWonTrends(trends: WonTrendsSummary, format: ResponseFormat): string;
+export declare function formatSalespeopleList(salespeople: SalespersonWithStats[], format: ResponseFormat): string;
+export declare function formatTeamsList(teams: SalesTeamWithStats[], format: ResponseFormat): string;
+export declare function formatPerformanceComparison(comparison: PerformanceComparison, format: ResponseFormat): string;
+export declare function formatActivityList(data: PaginatedResponse<ActivityDetail>, format: ResponseFormat): string;
+export declare function formatExportResult(result: ExportResult, format: ResponseFormat): string;
+export declare function formatPipelineSummaryWithWeighted(stages: PipelineSummaryWithWeighted[], format: ResponseFormat): string;
+export declare function formatLeadListItemExtended(lead: CrmLead): string;
 //# sourceMappingURL=formatters.d.ts.map

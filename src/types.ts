@@ -264,3 +264,209 @@ export interface LostTrendsSummary {
   };
   most_common_reason?: string;
 }
+
+// Won Opportunity (same as CrmLead but for clarity)
+export interface WonOpportunity extends CrmLead {
+  date_closed?: string;
+}
+
+// Won Analysis Summary
+export interface WonAnalysisSummary {
+  [key: string]: unknown;
+  period: string;
+  total_won: number;
+  total_won_revenue: number;
+  avg_deal_size: number;
+  avg_sales_cycle_days?: number;
+  // Grouped data
+  by_salesperson?: Array<{
+    user_id: number;
+    user_name: string;
+    count: number;
+    percentage: number;
+    won_revenue: number;
+    avg_deal: number;
+    avg_cycle_days?: number;
+  }>;
+  by_team?: Array<{
+    team_id: number;
+    team_name: string;
+    count: number;
+    percentage: number;
+    won_revenue: number;
+    avg_deal: number;
+  }>;
+  by_stage?: Array<{
+    stage_id: number;
+    stage_name: string;
+    count: number;
+    percentage: number;
+    won_revenue: number;
+    avg_deal: number;
+  }>;
+  by_month?: Array<{
+    month: string;
+    count: number;
+    won_revenue: number;
+  }>;
+  by_source?: Array<{
+    source_id: number;
+    source_name: string;
+    count: number;
+    percentage: number;
+    won_revenue: number;
+    avg_deal: number;
+  }>;
+  // Top won opportunities
+  top_won?: Array<{
+    id: number;
+    name: string;
+    revenue: number;
+    salesperson: string;
+    date_closed: string;
+    sales_cycle_days?: number;
+  }>;
+}
+
+// Won Trends Summary
+export interface WonTrendsSummary {
+  [key: string]: unknown;
+  period: string;
+  granularity: string;
+  periods: Array<{
+    period_label: string;
+    won_count: number;
+    won_revenue: number;
+    lost_count?: number;
+    lost_revenue?: number;
+    win_rate?: number;
+    avg_deal_size: number;
+  }>;
+  // Insights
+  avg_period_won: number;
+  avg_period_revenue: number;
+  best_period?: {
+    label: string;
+    won_count: number;
+    won_revenue: number;
+    win_rate?: number;
+  };
+  worst_period?: {
+    label: string;
+    won_count: number;
+    won_revenue: number;
+    win_rate?: number;
+  };
+  avg_deal_size_trend?: 'increasing' | 'decreasing' | 'stable';
+}
+
+// Salesperson with stats
+export interface SalespersonWithStats {
+  user_id: number;
+  name: string;
+  email?: string;
+  opportunity_count?: number;
+  active_revenue?: number;
+  won_count?: number;
+  won_revenue?: number;
+}
+
+// Sales Team with stats
+export interface SalesTeamWithStats {
+  team_id: number;
+  name: string;
+  member_count?: number;
+  opportunity_count?: number;
+  total_pipeline_revenue?: number;
+  won_count?: number;
+  won_revenue?: number;
+}
+
+// CRM Team
+export interface CrmTeam extends OdooRecord {
+  id: number;
+  name: string;
+  active?: boolean;
+  member_ids?: number[];
+}
+
+// Res Users
+export interface ResUsers extends OdooRecord {
+  id: number;
+  name: string;
+  email?: string;
+  login?: string;
+  active?: boolean;
+}
+
+// Performance Comparison
+export interface PerformanceComparison {
+  [key: string]: unknown;
+  compare_type: 'salespeople' | 'teams' | 'periods';
+  entities?: Array<{
+    id: number;
+    name: string;
+    won_count: number;
+    won_revenue: number;
+    win_rate: number;
+    avg_deal_size: number;
+    avg_cycle_days: number;
+    rank?: { [metric: string]: number };
+  }>;
+  periods?: Array<{
+    label: string;
+    start: string;
+    end: string;
+    won_count: number;
+    won_revenue: number;
+    win_rate: number;
+    avg_deal_size: number;
+    avg_cycle_days: number;
+  }>;
+  benchmarks?: {
+    avg_won_count: number;
+    avg_won_revenue: number;
+    avg_win_rate: number;
+    avg_deal_size: number;
+    avg_cycle_days: number;
+  };
+  period_change?: {
+    won_count_change: number;
+    won_revenue_change: number;
+    win_rate_change: number;
+    avg_deal_size_change: number;
+    avg_cycle_days_change: number;
+  };
+}
+
+// Activity Detail
+export interface ActivityDetail extends MailActivity {
+  res_name?: string;
+  activity_status?: 'overdue' | 'today' | 'upcoming' | 'done';
+}
+
+// Export Result
+export interface ExportResult {
+  [key: string]: unknown;
+  download_url?: string;
+  filename: string;
+  record_count: number;
+  file_size?: number;
+  expires_at?: string;
+  data?: string; // Base64 encoded for small exports
+  format: 'csv' | 'json';
+}
+
+// Pipeline Summary with weighted revenue
+export interface PipelineSummaryWithWeighted extends PipelineSummary {
+  weighted_revenue: number;
+}
+
+// Sales Analytics with weighted pipeline
+export interface SalesAnalyticsWithWeighted extends SalesAnalytics {
+  total_weighted_pipeline?: number;
+  weighted_by_salesperson?: Array<{
+    name: string;
+    weighted_revenue: number;
+  }>;
+}
