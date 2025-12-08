@@ -209,7 +209,7 @@ Returns: count, total revenue, avg probability per stage, plus optional top oppo
             // Get stages
             const stages = await client.searchRead('crm.stage', [], ['id', 'name', 'sequence', 'is_won'], { order: 'sequence asc' });
             // Get aggregated data by stage
-            const groupedData = await client.readGroup('crm.lead', domain, ['stage_id', 'expected_revenue:sum', 'probability:avg', '__count'], ['stage_id']);
+            const groupedData = await client.readGroup('crm.lead', domain, ['stage_id', 'expected_revenue:sum', 'probability:avg', 'id:count'], ['stage_id']);
             // Build summary
             const stageSummaries = [];
             for (const stage of stages) {
@@ -219,7 +219,7 @@ Returns: count, total revenue, avg probability per stage, plus optional top oppo
                 const summary = {
                     stage_name: stage.name,
                     stage_id: stage.id,
-                    count: stageData?.__count || 0,
+                    count: stageData?.id || 0,
                     total_revenue: stageData?.expected_revenue || 0,
                     avg_probability: stageData?.probability || 0,
                     opportunities: []
@@ -294,7 +294,7 @@ Returns aggregated metrics including conversion rates, revenue analysis, and per
             const wonOpps = await client.searchCount('crm.lead', [...domain, ['probability', '=', 100]]);
             const lostOpps = await client.searchCount('crm.lead', [...domain, ['active', '=', false], ['probability', '=', 0]]);
             // Get revenue by stage
-            const byStage = await client.readGroup('crm.lead', [...domain, ['active', '=', true]], ['stage_id', 'expected_revenue:sum', '__count'], ['stage_id']);
+            const byStage = await client.readGroup('crm.lead', [...domain, ['active', '=', true]], ['stage_id', 'expected_revenue:sum', 'id:count'], ['stage_id']);
             // Get revenue totals
             const revenueExpected = byStage.reduce((sum, s) => sum + (s.expected_revenue || 0), 0);
             const wonRevenue = await client.readGroup('crm.lead', [...domain, ['probability', '=', 100]], ['expected_revenue:sum'], []);
@@ -314,23 +314,23 @@ Returns aggregated metrics including conversion rates, revenue analysis, and per
                 avg_deal_size: wonOpps > 0 ? revenueWon / wonOpps : 0,
                 by_stage: byStage.map(s => ({
                     stage: Array.isArray(s.stage_id) ? s.stage_id[1] : 'Unknown',
-                    count: s.__count || 0,
+                    count: s.id || 0,
                     revenue: s.expected_revenue || 0
                 })),
                 top_opportunities: []
             };
             // Get by salesperson if requested
             if (params.include_by_salesperson) {
-                const bySalesperson = await client.readGroup('crm.lead', [...domain, ['active', '=', true]], ['user_id', 'expected_revenue:sum', '__count'], ['user_id']);
+                const bySalesperson = await client.readGroup('crm.lead', [...domain, ['active', '=', true]], ['user_id', 'expected_revenue:sum', 'id:count'], ['user_id']);
                 // Get won counts per user
-                const wonBySalesperson = await client.readGroup('crm.lead', [...domain, ['probability', '=', 100]], ['user_id', '__count'], ['user_id']);
+                const wonBySalesperson = await client.readGroup('crm.lead', [...domain, ['probability', '=', 100]], ['user_id', 'id:count'], ['user_id']);
                 analytics.by_salesperson = bySalesperson.map(s => {
                     const wonData = wonBySalesperson.find(w => Array.isArray(w.user_id) && Array.isArray(s.user_id) && w.user_id[0] === s.user_id[0]);
                     return {
                         name: Array.isArray(s.user_id) ? s.user_id[1] : 'Unassigned',
-                        count: s.__count || 0,
+                        count: s.id || 0,
                         revenue: s.expected_revenue || 0,
-                        won: wonData?.__count || 0
+                        won: wonData?.id || 0
                     };
                 });
             }
@@ -483,12 +483,12 @@ Returns activity counts by status (overdue, today, upcoming) and by type/user.
             ]);
             const total = overdue + todayCount + upcoming;
             // Get by type
-            const byType = await client.readGroup('mail.activity', baseDomain, ['activity_type_id', '__count'], ['activity_type_id']);
+            const byType = await client.readGroup('mail.activity', baseDomain, ['activity_type_id', 'id:count'], ['activity_type_id']);
             // Get overdue by type
-            const overdueByType = await client.readGroup('mail.activity', [...baseDomain, ['date_deadline', '<', today]], ['activity_type_id', '__count'], ['activity_type_id']);
+            const overdueByType = await client.readGroup('mail.activity', [...baseDomain, ['date_deadline', '<', today]], ['activity_type_id', 'id:count'], ['activity_type_id']);
             // Get by user
-            const byUser = await client.readGroup('mail.activity', baseDomain, ['user_id', '__count'], ['user_id']);
-            const overdueByUser = await client.readGroup('mail.activity', [...baseDomain, ['date_deadline', '<', today]], ['user_id', '__count'], ['user_id']);
+            const byUser = await client.readGroup('mail.activity', baseDomain, ['user_id', 'id:count'], ['user_id']);
+            const overdueByUser = await client.readGroup('mail.activity', [...baseDomain, ['date_deadline', '<', today]], ['user_id', 'id:count'], ['user_id']);
             const summary = {
                 total_activities: total,
                 overdue,
@@ -499,8 +499,8 @@ Returns activity counts by status (overdue, today, upcoming) and by type/user.
                         o.activity_type_id[0] === t.activity_type_id[0]);
                     return {
                         type: Array.isArray(t.activity_type_id) ? t.activity_type_id[1] : 'Unknown',
-                        count: t.__count || 0,
-                        overdue: overdueData?.__count || 0
+                        count: t.id || 0,
+                        overdue: overdueData?.id || 0
                     };
                 }),
                 by_user: byUser.map(u => {
@@ -508,8 +508,8 @@ Returns activity counts by status (overdue, today, upcoming) and by type/user.
                         o.user_id[0] === u.user_id[0]);
                     return {
                         user: Array.isArray(u.user_id) ? u.user_id[1] : 'Unassigned',
-                        total: u.__count || 0,
-                        overdue: overdueData?.__count || 0
+                        total: u.id || 0,
+                        overdue: overdueData?.id || 0
                     };
                 })
             };
@@ -609,20 +609,20 @@ Returns the list of predefined reasons for losing opportunities, with a count of
                 // Get lost reasons from crm.lost.reason model
                 const reasons = await client.searchRead('crm.lost.reason', domain, CRM_FIELDS.LOST_REASON, { order: 'name asc' });
                 // Get count of opportunities per reason using read_group
-                const countsByReason = await client.readGroup('crm.lead', [['lost_reason_id', '!=', false], ['active', '=', false], ['probability', '=', 0]], ['lost_reason_id', '__count'], ['lost_reason_id']);
+                const countsByReason = await client.readGroup('crm.lead', [['lost_reason_id', '!=', false], ['active', '=', false], ['probability', '=', 0]], ['lost_reason_id', 'id:count'], ['lost_reason_id']);
                 // Map counts to reasons
                 reasonsWithCounts = reasons.map(reason => {
                     const countData = countsByReason.find((c) => Array.isArray(c.lost_reason_id) && c.lost_reason_id[0] === reason.id);
                     return {
                         ...reason,
-                        opportunity_count: countData?.__count || 0
+                        opportunity_count: countData?.id || 0
                     };
                 });
             }
             catch {
                 // Fallback: Extract lost reasons directly from crm.lead lost_reason_id values
                 // This works even if crm.lost.reason model is not accessible
-                const countsByReason = await client.readGroup('crm.lead', [['lost_reason_id', '!=', false], ['type', '=', 'opportunity']], ['lost_reason_id', '__count'], ['lost_reason_id']);
+                const countsByReason = await client.readGroup('crm.lead', [['lost_reason_id', '!=', false], ['type', '=', 'opportunity']], ['lost_reason_id', 'id:count'], ['lost_reason_id']);
                 // Build reasons from the grouped data
                 reasonsWithCounts = countsByReason
                     .filter(c => Array.isArray(c.lost_reason_id) && c.lost_reason_id.length >= 2)
@@ -632,7 +632,7 @@ Returns the list of predefined reasons for losing opportunities, with a count of
                         id: reasonArr[0],
                         name: reasonArr[1],
                         active: true,
-                        opportunity_count: c.__count || 0
+                        opportunity_count: c.id || 0
                     };
                 })
                     .sort((a, b) => a.name.localeCompare(b.name));
@@ -711,8 +711,8 @@ Returns summary statistics including total lost count and revenue, breakdown by 
                 domain.push(['expected_revenue', '>=', params.min_revenue]);
             }
             // Get total lost count and revenue
-            const lostTotals = await client.readGroup('crm.lead', domain, ['expected_revenue:sum', '__count'], []);
-            const totalLost = lostTotals[0]?.__count || 0;
+            const lostTotals = await client.readGroup('crm.lead', domain, ['expected_revenue:sum', 'id:count'], []);
+            const totalLost = lostTotals[0]?.id || 0;
             const totalLostRevenue = lostTotals[0]?.expected_revenue || 0;
             // Build analysis summary
             const analysis = {
@@ -736,62 +736,62 @@ Returns summary statistics including total lost count and revenue, breakdown by 
                 wonDomain.push(['user_id', '=', params.user_id]);
             if (params.team_id)
                 wonDomain.push(['team_id', '=', params.team_id]);
-            const wonTotals = await client.readGroup('crm.lead', wonDomain, ['expected_revenue:sum', '__count'], []);
-            analysis.total_won = wonTotals[0]?.__count || 0;
+            const wonTotals = await client.readGroup('crm.lead', wonDomain, ['expected_revenue:sum', 'id:count'], []);
+            analysis.total_won = wonTotals[0]?.id || 0;
             analysis.total_won_revenue = wonTotals[0]?.expected_revenue || 0;
             analysis.win_rate = (analysis.total_won + totalLost) > 0
                 ? (analysis.total_won / (analysis.total_won + totalLost)) * 100
                 : 0;
             // Get grouped data based on group_by parameter
             if (params.group_by === 'reason') {
-                const byReason = await client.readGroup('crm.lead', domain, ['lost_reason_id', 'expected_revenue:sum', '__count'], ['lost_reason_id']);
+                const byReason = await client.readGroup('crm.lead', domain, ['lost_reason_id', 'expected_revenue:sum', 'id:count'], ['lost_reason_id']);
                 analysis.by_reason = byReason.map(r => ({
                     reason_id: Array.isArray(r.lost_reason_id) ? r.lost_reason_id[0] : 0,
                     reason_name: Array.isArray(r.lost_reason_id) ? r.lost_reason_id[1] : 'No Reason Specified',
-                    count: r.__count || 0,
-                    percentage: totalLost > 0 ? (r.__count / totalLost) * 100 : 0,
+                    count: r.id || 0,
+                    percentage: totalLost > 0 ? (r.id / totalLost) * 100 : 0,
                     lost_revenue: r.expected_revenue || 0,
-                    avg_deal: r.__count > 0 ? (r.expected_revenue || 0) / r.__count : 0
+                    avg_deal: r.id > 0 ? (r.expected_revenue || 0) / r.id : 0
                 })).sort((a, b) => b.count - a.count);
             }
             if (params.group_by === 'salesperson') {
-                const byUser = await client.readGroup('crm.lead', domain, ['user_id', 'expected_revenue:sum', '__count'], ['user_id']);
+                const byUser = await client.readGroup('crm.lead', domain, ['user_id', 'expected_revenue:sum', 'id:count'], ['user_id']);
                 analysis.by_salesperson = byUser.map(u => ({
                     user_id: Array.isArray(u.user_id) ? u.user_id[0] : 0,
                     user_name: Array.isArray(u.user_id) ? u.user_id[1] : 'Unassigned',
-                    count: u.__count || 0,
-                    percentage: totalLost > 0 ? (u.__count / totalLost) * 100 : 0,
+                    count: u.id || 0,
+                    percentage: totalLost > 0 ? (u.id / totalLost) * 100 : 0,
                     lost_revenue: u.expected_revenue || 0,
-                    avg_deal: u.__count > 0 ? (u.expected_revenue || 0) / u.__count : 0
+                    avg_deal: u.id > 0 ? (u.expected_revenue || 0) / u.id : 0
                 })).sort((a, b) => b.count - a.count);
             }
             if (params.group_by === 'team') {
-                const byTeam = await client.readGroup('crm.lead', domain, ['team_id', 'expected_revenue:sum', '__count'], ['team_id']);
+                const byTeam = await client.readGroup('crm.lead', domain, ['team_id', 'expected_revenue:sum', 'id:count'], ['team_id']);
                 analysis.by_team = byTeam.map(t => ({
                     team_id: Array.isArray(t.team_id) ? t.team_id[0] : 0,
                     team_name: Array.isArray(t.team_id) ? t.team_id[1] : 'No Team',
-                    count: t.__count || 0,
-                    percentage: totalLost > 0 ? (t.__count / totalLost) * 100 : 0,
+                    count: t.id || 0,
+                    percentage: totalLost > 0 ? (t.id / totalLost) * 100 : 0,
                     lost_revenue: t.expected_revenue || 0,
-                    avg_deal: t.__count > 0 ? (t.expected_revenue || 0) / t.__count : 0
+                    avg_deal: t.id > 0 ? (t.expected_revenue || 0) / t.id : 0
                 })).sort((a, b) => b.count - a.count);
             }
             if (params.group_by === 'stage') {
-                const byStage = await client.readGroup('crm.lead', domain, ['stage_id', 'expected_revenue:sum', '__count'], ['stage_id']);
+                const byStage = await client.readGroup('crm.lead', domain, ['stage_id', 'expected_revenue:sum', 'id:count'], ['stage_id']);
                 analysis.by_stage = byStage.map(s => ({
                     stage_id: Array.isArray(s.stage_id) ? s.stage_id[0] : 0,
                     stage_name: Array.isArray(s.stage_id) ? s.stage_id[1] : 'Unknown',
-                    count: s.__count || 0,
-                    percentage: totalLost > 0 ? (s.__count / totalLost) * 100 : 0,
+                    count: s.id || 0,
+                    percentage: totalLost > 0 ? (s.id / totalLost) * 100 : 0,
                     lost_revenue: s.expected_revenue || 0,
-                    avg_deal: s.__count > 0 ? (s.expected_revenue || 0) / s.__count : 0
+                    avg_deal: s.id > 0 ? (s.expected_revenue || 0) / s.id : 0
                 })).sort((a, b) => b.count - a.count);
             }
             if (params.group_by === 'month') {
-                const byMonth = await client.readGroup('crm.lead', domain, ['date_closed:month', 'expected_revenue:sum', '__count'], ['date_closed:month']);
+                const byMonth = await client.readGroup('crm.lead', domain, ['date_closed:month', 'expected_revenue:sum', 'id:count'], ['date_closed:month']);
                 analysis.by_month = byMonth.map(m => ({
                     month: m['date_closed:month'] || 'Unknown',
-                    count: m.__count || 0,
+                    count: m.id || 0,
                     lost_revenue: m.expected_revenue || 0
                 }));
             }
@@ -852,6 +852,12 @@ Returns a paginated list of lost opportunities with details including the lost r
                 '&', ['active', '=', false], ['probability', '=', 0],
                 ['lost_reason_id', '!=', false]
             ];
+            // Default to last 90 days if no date filter specified (prevents timeout on large datasets)
+            if (!params.date_from && !params.date_to) {
+                const ninetyDaysAgo = new Date();
+                ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+                domain.push(['date_closed', '>=', ninetyDaysAgo.toISOString().split('T')[0]]);
+            }
             // Apply search filters
             if (params.query) {
                 domain.push('|', '|', ['name', 'ilike', params.query], ['contact_name', 'ilike', params.query], ['email_from', 'ilike', params.query]);
@@ -1260,8 +1266,8 @@ Returns summary statistics including total won count and revenue, breakdown by t
                 domain.push(['expected_revenue', '>=', params.min_revenue]);
             }
             // Get total won count and revenue
-            const wonTotals = await client.readGroup('crm.lead', domain, ['expected_revenue:sum', '__count'], []);
-            const totalWon = wonTotals[0]?.__count || 0;
+            const wonTotals = await client.readGroup('crm.lead', domain, ['expected_revenue:sum', 'id:count'], []);
+            const totalWon = wonTotals[0]?.id || 0;
             const totalWonRevenue = wonTotals[0]?.expected_revenue || 0;
             // Build analysis summary
             const analysis = {
@@ -1292,55 +1298,55 @@ Returns summary statistics including total won count and revenue, breakdown by t
             }
             // Get grouped data based on group_by parameter
             if (params.group_by === 'salesperson') {
-                const byUser = await client.readGroup('crm.lead', domain, ['user_id', 'expected_revenue:sum', '__count'], ['user_id']);
+                const byUser = await client.readGroup('crm.lead', domain, ['user_id', 'expected_revenue:sum', 'id:count'], ['user_id']);
                 analysis.by_salesperson = byUser.map(u => ({
                     user_id: Array.isArray(u.user_id) ? u.user_id[0] : 0,
                     user_name: Array.isArray(u.user_id) ? u.user_id[1] : 'Unassigned',
-                    count: u.__count || 0,
-                    percentage: totalWon > 0 ? (u.__count / totalWon) * 100 : 0,
+                    count: u.id || 0,
+                    percentage: totalWon > 0 ? (u.id / totalWon) * 100 : 0,
                     won_revenue: u.expected_revenue || 0,
-                    avg_deal: u.__count > 0 ? (u.expected_revenue || 0) / u.__count : 0
+                    avg_deal: u.id > 0 ? (u.expected_revenue || 0) / u.id : 0
                 })).sort((a, b) => b.count - a.count);
             }
             if (params.group_by === 'team') {
-                const byTeam = await client.readGroup('crm.lead', domain, ['team_id', 'expected_revenue:sum', '__count'], ['team_id']);
+                const byTeam = await client.readGroup('crm.lead', domain, ['team_id', 'expected_revenue:sum', 'id:count'], ['team_id']);
                 analysis.by_team = byTeam.map(t => ({
                     team_id: Array.isArray(t.team_id) ? t.team_id[0] : 0,
                     team_name: Array.isArray(t.team_id) ? t.team_id[1] : 'No Team',
-                    count: t.__count || 0,
-                    percentage: totalWon > 0 ? (t.__count / totalWon) * 100 : 0,
+                    count: t.id || 0,
+                    percentage: totalWon > 0 ? (t.id / totalWon) * 100 : 0,
                     won_revenue: t.expected_revenue || 0,
-                    avg_deal: t.__count > 0 ? (t.expected_revenue || 0) / t.__count : 0
+                    avg_deal: t.id > 0 ? (t.expected_revenue || 0) / t.id : 0
                 })).sort((a, b) => b.count - a.count);
             }
             if (params.group_by === 'stage') {
-                const byStage = await client.readGroup('crm.lead', domain, ['stage_id', 'expected_revenue:sum', '__count'], ['stage_id']);
+                const byStage = await client.readGroup('crm.lead', domain, ['stage_id', 'expected_revenue:sum', 'id:count'], ['stage_id']);
                 analysis.by_stage = byStage.map(s => ({
                     stage_id: Array.isArray(s.stage_id) ? s.stage_id[0] : 0,
                     stage_name: Array.isArray(s.stage_id) ? s.stage_id[1] : 'Unknown',
-                    count: s.__count || 0,
-                    percentage: totalWon > 0 ? (s.__count / totalWon) * 100 : 0,
+                    count: s.id || 0,
+                    percentage: totalWon > 0 ? (s.id / totalWon) * 100 : 0,
                     won_revenue: s.expected_revenue || 0,
-                    avg_deal: s.__count > 0 ? (s.expected_revenue || 0) / s.__count : 0
+                    avg_deal: s.id > 0 ? (s.expected_revenue || 0) / s.id : 0
                 })).sort((a, b) => b.count - a.count);
             }
             if (params.group_by === 'month') {
-                const byMonth = await client.readGroup('crm.lead', domain, ['date_closed:month', 'expected_revenue:sum', '__count'], ['date_closed:month']);
+                const byMonth = await client.readGroup('crm.lead', domain, ['date_closed:month', 'expected_revenue:sum', 'id:count'], ['date_closed:month']);
                 analysis.by_month = byMonth.map(m => ({
                     month: m['date_closed:month'] || 'Unknown',
-                    count: m.__count || 0,
+                    count: m.id || 0,
                     won_revenue: m.expected_revenue || 0
                 }));
             }
             if (params.group_by === 'source') {
-                const bySource = await client.readGroup('crm.lead', domain, ['source_id', 'expected_revenue:sum', '__count'], ['source_id']);
+                const bySource = await client.readGroup('crm.lead', domain, ['source_id', 'expected_revenue:sum', 'id:count'], ['source_id']);
                 analysis.by_source = bySource.map(s => ({
                     source_id: Array.isArray(s.source_id) ? s.source_id[0] : 0,
                     source_name: Array.isArray(s.source_id) ? s.source_id[1] : 'No Source',
-                    count: s.__count || 0,
-                    percentage: totalWon > 0 ? (s.__count / totalWon) * 100 : 0,
+                    count: s.id || 0,
+                    percentage: totalWon > 0 ? (s.id / totalWon) * 100 : 0,
                     won_revenue: s.expected_revenue || 0,
-                    avg_deal: s.__count > 0 ? (s.expected_revenue || 0) / s.__count : 0
+                    avg_deal: s.id > 0 ? (s.expected_revenue || 0) / s.id : 0
                 })).sort((a, b) => b.count - a.count);
             }
             // Get top won opportunities
@@ -1589,9 +1595,9 @@ Returns a list of users with their IDs and optionally their opportunity statisti
         try {
             const client = getOdooClient();
             // Get all users who have opportunities assigned
-            const userStats = await client.readGroup('crm.lead', [['user_id', '!=', false], ['type', '=', 'opportunity'], ['active', '=', true]], ['user_id', 'expected_revenue:sum', '__count'], ['user_id']);
+            const userStats = await client.readGroup('crm.lead', [['user_id', '!=', false], ['type', '=', 'opportunity'], ['active', '=', true]], ['user_id', 'expected_revenue:sum', 'id:count'], ['user_id']);
             // Get won stats
-            const wonStats = await client.readGroup('crm.lead', [['user_id', '!=', false], ['probability', '=', 100]], ['user_id', 'expected_revenue:sum', '__count'], ['user_id']);
+            const wonStats = await client.readGroup('crm.lead', [['user_id', '!=', false], ['probability', '=', 100]], ['user_id', 'expected_revenue:sum', 'id:count'], ['user_id']);
             const salespeople = [];
             for (const stat of userStats) {
                 if (!Array.isArray(stat.user_id))
@@ -1604,9 +1610,9 @@ Returns a list of users with their IDs and optionally their opportunity statisti
                     name: userName
                 };
                 if (params.include_stats) {
-                    spWithStats.opportunity_count = stat.__count || 0;
+                    spWithStats.opportunity_count = stat.id || 0;
                     spWithStats.active_revenue = stat.expected_revenue || 0;
-                    spWithStats.won_count = wonStat?.__count || 0;
+                    spWithStats.won_count = wonStat?.id || 0;
                     spWithStats.won_revenue = wonStat?.expected_revenue || 0;
                 }
                 salespeople.push(spWithStats);
@@ -1655,9 +1661,9 @@ Returns a list of teams with their IDs and optionally member count and opportuni
             const teams = [];
             if (params.include_stats) {
                 // Get opportunity stats per team
-                const teamStats = await client.readGroup('crm.lead', [['team_id', '!=', false], ['type', '=', 'opportunity'], ['active', '=', true]], ['team_id', 'expected_revenue:sum', '__count'], ['team_id']);
+                const teamStats = await client.readGroup('crm.lead', [['team_id', '!=', false], ['type', '=', 'opportunity'], ['active', '=', true]], ['team_id', 'expected_revenue:sum', 'id:count'], ['team_id']);
                 // Get won stats per team
-                const wonStats = await client.readGroup('crm.lead', [['team_id', '!=', false], ['probability', '=', 100]], ['team_id', 'expected_revenue:sum', '__count'], ['team_id']);
+                const wonStats = await client.readGroup('crm.lead', [['team_id', '!=', false], ['probability', '=', 100]], ['team_id', 'expected_revenue:sum', 'id:count'], ['team_id']);
                 for (const team of teamsData) {
                     const stat = teamStats.find(s => Array.isArray(s.team_id) && s.team_id[0] === team.id);
                     const wonStat = wonStats.find(w => Array.isArray(w.team_id) && w.team_id[0] === team.id);
@@ -1665,9 +1671,9 @@ Returns a list of teams with their IDs and optionally member count and opportuni
                         team_id: team.id,
                         name: team.name,
                         member_count: team.member_ids?.length,
-                        opportunity_count: stat?.__count || 0,
+                        opportunity_count: stat?.id || 0,
                         total_pipeline_revenue: stat?.expected_revenue || 0,
-                        won_count: wonStat?.__count || 0,
+                        won_count: wonStat?.id || 0,
                         won_revenue: wonStat?.expected_revenue || 0
                     });
                 }
@@ -1745,11 +1751,11 @@ Returns side-by-side comparison of key metrics including won count, revenue, win
                         ['date_closed', '>=', start],
                         ['date_closed', '<=', end]
                     ];
-                    const wonTotals = await client.readGroup('crm.lead', wonDomain, ['expected_revenue:sum', '__count'], []);
-                    const lostTotals = await client.readGroup('crm.lead', lostDomain, ['__count'], []);
-                    const wonCount = wonTotals[0]?.__count || 0;
+                    const wonTotals = await client.readGroup('crm.lead', wonDomain, ['expected_revenue:sum', 'id:count'], []);
+                    const lostTotals = await client.readGroup('crm.lead', lostDomain, ['id:count'], []);
+                    const wonCount = wonTotals[0]?.id || 0;
                     const wonRevenue = wonTotals[0]?.expected_revenue || 0;
-                    const lostCount = lostTotals[0]?.__count || 0;
+                    const lostCount = lostTotals[0]?.id || 0;
                     const winRate = (wonCount + lostCount) > 0 ? (wonCount / (wonCount + lostCount)) * 100 : 0;
                     // Get cycle days
                     const wonOpps = await client.searchRead('crm.lead', wonDomain, ['create_date', 'date_closed'], { limit: 500 });
@@ -1790,9 +1796,9 @@ Returns side-by-side comparison of key metrics including won count, revenue, win
                 // Salespeople or Teams comparison
                 const groupField = params.compare_type === 'salespeople' ? 'user_id' : 'team_id';
                 // Get won stats
-                const wonStats = await client.readGroup('crm.lead', [[groupField, '!=', false], ['probability', '=', 100]], [groupField, 'expected_revenue:sum', '__count'], [groupField]);
+                const wonStats = await client.readGroup('crm.lead', [[groupField, '!=', false], ['probability', '=', 100]], [groupField, 'expected_revenue:sum', 'id:count'], [groupField]);
                 // Get lost stats
-                const lostStats = await client.readGroup('crm.lead', [[groupField, '!=', false], '|', '&', ['active', '=', false], ['probability', '=', 0], ['lost_reason_id', '!=', false]], [groupField, '__count'], [groupField]);
+                const lostStats = await client.readGroup('crm.lead', [[groupField, '!=', false], '|', '&', ['active', '=', false], ['probability', '=', 0], ['lost_reason_id', '!=', false]], [groupField, 'id:count'], [groupField]);
                 const entities = [];
                 for (const stat of wonStats) {
                     const fieldValue = stat[groupField];
@@ -1806,8 +1812,8 @@ Returns side-by-side comparison of key metrics including won count, revenue, win
                         const lf = l[groupField];
                         return Array.isArray(lf) && lf[0] === fieldValue[0];
                     });
-                    const wonCount = stat.__count || 0;
-                    const lostCount = lostStat?.__count || 0;
+                    const wonCount = stat.id || 0;
+                    const lostCount = lostStat?.id || 0;
                     entities.push({
                         id: fieldValue[0],
                         name: fieldValue[1],

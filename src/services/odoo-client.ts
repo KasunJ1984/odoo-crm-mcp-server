@@ -268,7 +268,7 @@ export class OdooClient {
           total_batches: totalBatches,
           records_exported: allRecords.length,
           total_records: recordsToFetch,
-          percent_complete: Math.round((allRecords.length / recordsToFetch) * 100),
+          percent_complete: recordsToFetch > 0 ? Math.round((allRecords.length / recordsToFetch) * 100) : 0,
           elapsed_ms: elapsed,
         });
       }

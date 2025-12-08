@@ -293,11 +293,11 @@ export const LostOpportunitiesSearchSchema = PaginationSchema.extend({
   date_from: z.string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional()
-    .describe('Lost after this date (YYYY-MM-DD)'),
+    .describe('Lost after this date (YYYY-MM-DD). Defaults to 90 days ago if neither date_from nor date_to specified.'),
   date_to: z.string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional()
-    .describe('Lost before this date (YYYY-MM-DD)'),
+    .describe('Lost before this date (YYYY-MM-DD). If neither date specified, defaults to last 90 days.'),
   min_revenue: z.number()
     .min(0)
     .optional()

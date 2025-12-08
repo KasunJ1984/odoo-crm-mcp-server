@@ -11,9 +11,9 @@ export function formatCurrency(value) {
         maximumFractionDigits: 0
     }).format(value);
 }
-// Format percentage
+// Format percentage (with NaN guard)
 export function formatPercent(value) {
-    if (value === undefined || value === null)
+    if (value === undefined || value === null || isNaN(value))
         return '-';
     return `${Math.round(value)}%`;
 }
@@ -365,7 +365,7 @@ export function formatLostTrends(trends, format) {
         }
     }
     output += '\n### Trend Insights\n';
-    output += `- **Avg Lost per Period:** ${trends.avg_monthly_lost.toFixed(0)} opportunities (${formatCurrency(trends.avg_monthly_revenue)})\n`;
+    output += `- **Avg Lost per Period:** ${(isNaN(trends.avg_monthly_lost) ? 0 : trends.avg_monthly_lost).toFixed(0)} opportunities (${formatCurrency(trends.avg_monthly_revenue)})\n`;
     if (trends.worst_period) {
         output += `- **Worst Period:** ${trends.worst_period.label} (${trends.worst_period.lost_count} lost`;
         if (trends.worst_period.win_rate !== undefined) {
@@ -509,7 +509,7 @@ export function formatWonTrends(trends, format) {
         }
     }
     output += '\n### Trend Insights\n';
-    output += `- **Avg Won per Period:** ${trends.avg_period_won.toFixed(0)} opportunities (${formatCurrency(trends.avg_period_revenue)})\n`;
+    output += `- **Avg Won per Period:** ${(isNaN(trends.avg_period_won) ? 0 : trends.avg_period_won).toFixed(0)} opportunities (${formatCurrency(trends.avg_period_revenue)})\n`;
     if (trends.best_period) {
         output += `- **Best Period:** ${trends.best_period.label} (${trends.best_period.won_count} won, ${formatCurrency(trends.best_period.won_revenue)}`;
         if (trends.best_period.win_rate !== undefined) {
@@ -583,7 +583,7 @@ export function formatPerformanceComparison(comparison, format) {
             output += `| **Period** | ${p1.label} | ${p2.label} | - |\n`;
             output += `| Won Count | ${p1.won_count} | ${p2.won_count} | ${change?.won_count_change !== undefined ? `${change.won_count_change >= 0 ? '+' : ''}${formatPercent(change.won_count_change)}` : '-'} |\n`;
             output += `| Won Revenue | ${formatCurrency(p1.won_revenue)} | ${formatCurrency(p2.won_revenue)} | ${change?.won_revenue_change !== undefined ? `${change.won_revenue_change >= 0 ? '+' : ''}${formatPercent(change.won_revenue_change)}` : '-'} |\n`;
-            output += `| Win Rate | ${formatPercent(p1.win_rate)} | ${formatPercent(p2.win_rate)} | ${change?.win_rate_change !== undefined ? `${change.win_rate_change >= 0 ? '+' : ''}${change.win_rate_change.toFixed(1)}pp` : '-'} |\n`;
+            output += `| Win Rate | ${formatPercent(p1.win_rate)} | ${formatPercent(p2.win_rate)} | ${change?.win_rate_change !== undefined && !isNaN(change.win_rate_change) ? `${change.win_rate_change >= 0 ? '+' : ''}${change.win_rate_change.toFixed(1)}pp` : '-'} |\n`;
             output += `| Avg Deal Size | ${formatCurrency(p1.avg_deal_size)} | ${formatCurrency(p2.avg_deal_size)} | ${change?.avg_deal_size_change !== undefined ? `${change.avg_deal_size_change >= 0 ? '+' : ''}${formatPercent(change.avg_deal_size_change)}` : '-'} |\n`;
             output += `| Avg Cycle Days | ${Math.round(p1.avg_cycle_days)} | ${Math.round(p2.avg_cycle_days)} | ${change?.avg_cycle_days_change !== undefined ? `${change.avg_cycle_days_change >= 0 ? '+' : ''}${formatPercent(change.avg_cycle_days_change)}` : '-'} |\n`;
         }
@@ -597,7 +597,7 @@ export function formatPerformanceComparison(comparison, format) {
         }
         if (comparison.benchmarks) {
             output += '\n### Benchmarks (Average)\n';
-            output += `- Won Count: ${comparison.benchmarks.avg_won_count.toFixed(1)}\n`;
+            output += `- Won Count: ${(isNaN(comparison.benchmarks.avg_won_count) ? 0 : comparison.benchmarks.avg_won_count).toFixed(1)}\n`;
             output += `- Won Revenue: ${formatCurrency(comparison.benchmarks.avg_won_revenue)}\n`;
             output += `- Win Rate: ${formatPercent(comparison.benchmarks.avg_win_rate)}\n`;
             output += `- Avg Deal Size: ${formatCurrency(comparison.benchmarks.avg_deal_size)}\n`;
