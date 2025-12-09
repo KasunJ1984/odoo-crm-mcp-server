@@ -806,6 +806,38 @@ Returns summary statistics including total lost count and revenue, breakdown by 
                     lost_revenue: m.expected_revenue || 0
                 }));
             }
+            if (params.group_by === 'sector') {
+                const bySector = await client.readGroup('crm.lead', domain, ['sector', 'expected_revenue:sum', 'id:count'], ['sector']);
+                analysis.by_sector = bySector.map(s => ({
+                    sector: s.sector || 'Not Specified',
+                    count: s.id || 0,
+                    percentage: totalLost > 0 ? (s.id / totalLost) * 100 : 0,
+                    lost_revenue: s.expected_revenue || 0,
+                    avg_deal: s.id > 0 ? (s.expected_revenue || 0) / s.id : 0
+                })).sort((a, b) => b.count - a.count);
+            }
+            if (params.group_by === 'specification') {
+                const bySpec = await client.readGroup('crm.lead', domain, ['specification_id', 'expected_revenue:sum', 'id:count'], ['specification_id']);
+                analysis.by_specification = bySpec.map(s => ({
+                    specification_id: Array.isArray(s.specification_id) ? s.specification_id[0] : 0,
+                    specification_name: Array.isArray(s.specification_id) ? s.specification_id[1] : 'Not Specified',
+                    count: s.id || 0,
+                    percentage: totalLost > 0 ? (s.id / totalLost) * 100 : 0,
+                    lost_revenue: s.expected_revenue || 0,
+                    avg_deal: s.id > 0 ? (s.expected_revenue || 0) / s.id : 0
+                })).sort((a, b) => b.count - a.count);
+            }
+            if (params.group_by === 'lead_source') {
+                const byLeadSource = await client.readGroup('crm.lead', domain, ['lead_source_id', 'expected_revenue:sum', 'id:count'], ['lead_source_id']);
+                analysis.by_lead_source = byLeadSource.map(s => ({
+                    lead_source_id: Array.isArray(s.lead_source_id) ? s.lead_source_id[0] : 0,
+                    lead_source_name: Array.isArray(s.lead_source_id) ? s.lead_source_id[1] : 'Not Specified',
+                    count: s.id || 0,
+                    percentage: totalLost > 0 ? (s.id / totalLost) * 100 : 0,
+                    lost_revenue: s.expected_revenue || 0,
+                    avg_deal: s.id > 0 ? (s.expected_revenue || 0) / s.id : 0
+                })).sort((a, b) => b.count - a.count);
+            }
             // Get top lost opportunities
             if (params.include_top_lost > 0) {
                 const topLost = await client.searchRead('crm.lead', domain, ['id', 'name', 'expected_revenue', 'lost_reason_id', 'user_id', 'date_closed'], { limit: params.include_top_lost, order: 'expected_revenue desc' });
@@ -1375,6 +1407,38 @@ Returns summary statistics including total won count and revenue, breakdown by t
                 analysis.by_source = bySource.map(s => ({
                     source_id: Array.isArray(s.source_id) ? s.source_id[0] : 0,
                     source_name: Array.isArray(s.source_id) ? s.source_id[1] : 'No Source',
+                    count: s.id || 0,
+                    percentage: totalWon > 0 ? (s.id / totalWon) * 100 : 0,
+                    won_revenue: s.expected_revenue || 0,
+                    avg_deal: s.id > 0 ? (s.expected_revenue || 0) / s.id : 0
+                })).sort((a, b) => b.count - a.count);
+            }
+            if (params.group_by === 'sector') {
+                const bySector = await client.readGroup('crm.lead', domain, ['sector', 'expected_revenue:sum', 'id:count'], ['sector']);
+                analysis.by_sector = bySector.map(s => ({
+                    sector: s.sector || 'Not Specified',
+                    count: s.id || 0,
+                    percentage: totalWon > 0 ? (s.id / totalWon) * 100 : 0,
+                    won_revenue: s.expected_revenue || 0,
+                    avg_deal: s.id > 0 ? (s.expected_revenue || 0) / s.id : 0
+                })).sort((a, b) => b.count - a.count);
+            }
+            if (params.group_by === 'specification') {
+                const bySpec = await client.readGroup('crm.lead', domain, ['specification_id', 'expected_revenue:sum', 'id:count'], ['specification_id']);
+                analysis.by_specification = bySpec.map(s => ({
+                    specification_id: Array.isArray(s.specification_id) ? s.specification_id[0] : 0,
+                    specification_name: Array.isArray(s.specification_id) ? s.specification_id[1] : 'Not Specified',
+                    count: s.id || 0,
+                    percentage: totalWon > 0 ? (s.id / totalWon) * 100 : 0,
+                    won_revenue: s.expected_revenue || 0,
+                    avg_deal: s.id > 0 ? (s.expected_revenue || 0) / s.id : 0
+                })).sort((a, b) => b.count - a.count);
+            }
+            if (params.group_by === 'lead_source') {
+                const byLeadSource = await client.readGroup('crm.lead', domain, ['lead_source_id', 'expected_revenue:sum', 'id:count'], ['lead_source_id']);
+                analysis.by_lead_source = byLeadSource.map(s => ({
+                    lead_source_id: Array.isArray(s.lead_source_id) ? s.lead_source_id[0] : 0,
+                    lead_source_name: Array.isArray(s.lead_source_id) ? s.lead_source_id[1] : 'Not Specified',
                     count: s.id || 0,
                     percentage: totalWon > 0 ? (s.id / totalWon) * 100 : 0,
                     won_revenue: s.expected_revenue || 0,

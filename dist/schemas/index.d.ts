@@ -208,12 +208,12 @@ export declare const LostAnalysisSchema: z.ZodObject<{
     lost_reason_id: z.ZodOptional<z.ZodNumber>;
     stage_id: z.ZodOptional<z.ZodNumber>;
     min_revenue: z.ZodOptional<z.ZodNumber>;
-    group_by: z.ZodDefault<z.ZodEnum<["reason", "salesperson", "team", "stage", "month"]>>;
+    group_by: z.ZodDefault<z.ZodEnum<["reason", "salesperson", "team", "stage", "month", "sector", "specification", "lead_source"]>>;
     include_top_lost: z.ZodDefault<z.ZodNumber>;
     response_format: z.ZodDefault<z.ZodNativeEnum<typeof ResponseFormat>>;
 }, "strict", z.ZodTypeAny, {
     response_format: ResponseFormat;
-    group_by: "month" | "reason" | "salesperson" | "team" | "stage";
+    group_by: "sector" | "month" | "reason" | "salesperson" | "team" | "stage" | "specification" | "lead_source";
     include_top_lost: number;
     stage_id?: number | undefined;
     user_id?: number | undefined;
@@ -231,7 +231,7 @@ export declare const LostAnalysisSchema: z.ZodObject<{
     min_revenue?: number | undefined;
     date_from?: string | undefined;
     date_to?: string | undefined;
-    group_by?: "month" | "reason" | "salesperson" | "team" | "stage" | undefined;
+    group_by?: "sector" | "month" | "reason" | "salesperson" | "team" | "stage" | "specification" | "lead_source" | undefined;
     include_top_lost?: number | undefined;
 }>;
 export declare const LostOpportunitiesSearchSchema: z.ZodObject<{
@@ -372,7 +372,7 @@ export declare const WonOpportunitiesSearchSchema: z.ZodObject<{
     order_dir?: "asc" | "desc" | undefined;
 }>;
 export declare const WonAnalysisSchema: z.ZodObject<{
-    group_by: z.ZodDefault<z.ZodEnum<["salesperson", "team", "stage", "month", "source"]>>;
+    group_by: z.ZodDefault<z.ZodEnum<["salesperson", "team", "stage", "month", "source", "sector", "specification", "lead_source"]>>;
     date_from: z.ZodOptional<z.ZodString>;
     date_to: z.ZodOptional<z.ZodString>;
     user_id: z.ZodOptional<z.ZodNumber>;
@@ -382,7 +382,7 @@ export declare const WonAnalysisSchema: z.ZodObject<{
     response_format: z.ZodDefault<z.ZodNativeEnum<typeof ResponseFormat>>;
 }, "strict", z.ZodTypeAny, {
     response_format: ResponseFormat;
-    group_by: "month" | "salesperson" | "team" | "stage" | "source";
+    group_by: "sector" | "month" | "salesperson" | "team" | "stage" | "specification" | "lead_source" | "source";
     include_top_won: number;
     user_id?: number | undefined;
     team_id?: number | undefined;
@@ -396,7 +396,7 @@ export declare const WonAnalysisSchema: z.ZodObject<{
     min_revenue?: number | undefined;
     date_from?: string | undefined;
     date_to?: string | undefined;
-    group_by?: "month" | "salesperson" | "team" | "stage" | "source" | undefined;
+    group_by?: "sector" | "month" | "salesperson" | "team" | "stage" | "specification" | "lead_source" | "source" | undefined;
     include_top_won?: number | undefined;
 }>;
 export declare const WonTrendsSchema: z.ZodObject<{

@@ -260,9 +260,9 @@ export const LostAnalysisSchema = z.object({
     .min(0)
     .optional()
     .describe('Minimum revenue threshold'),
-  group_by: z.enum(['reason', 'salesperson', 'team', 'stage', 'month'])
+  group_by: z.enum(['reason', 'salesperson', 'team', 'stage', 'month', 'sector', 'specification', 'lead_source'])
     .default('reason')
-    .describe("Group results by: 'reason', 'salesperson', 'team', 'stage', or 'month'"),
+    .describe("Group results by: 'reason', 'salesperson', 'team', 'stage', 'month', 'sector', 'specification', or 'lead_source'"),
   include_top_lost: z.number()
     .int()
     .min(0)
@@ -431,9 +431,9 @@ export const WonOpportunitiesSearchSchema = PaginationSchema.extend({
 
 // Won analysis schema
 export const WonAnalysisSchema = z.object({
-  group_by: z.enum(['salesperson', 'team', 'stage', 'month', 'source'])
+  group_by: z.enum(['salesperson', 'team', 'stage', 'month', 'source', 'sector', 'specification', 'lead_source'])
     .default('salesperson')
-    .describe("Group results by: 'salesperson', 'team', 'stage', 'month', or 'source'"),
+    .describe("Group results by: 'salesperson', 'team', 'stage', 'month', 'source', 'sector', 'specification', or 'lead_source'"),
   date_from: z.string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional()

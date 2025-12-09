@@ -195,6 +195,29 @@ export interface LostAnalysisSummary {
         count: number;
         lost_revenue: number;
     }>;
+    by_sector?: Array<{
+        sector: string;
+        count: number;
+        percentage: number;
+        lost_revenue: number;
+        avg_deal: number;
+    }>;
+    by_specification?: Array<{
+        specification_id: number;
+        specification_name: string;
+        count: number;
+        percentage: number;
+        lost_revenue: number;
+        avg_deal: number;
+    }>;
+    by_lead_source?: Array<{
+        lead_source_id: number;
+        lead_source_name: string;
+        count: number;
+        percentage: number;
+        lost_revenue: number;
+        avg_deal: number;
+    }>;
     top_lost?: Array<{
         id: number;
         name: string;
@@ -278,6 +301,29 @@ export interface WonAnalysisSummary {
     by_source?: Array<{
         source_id: number;
         source_name: string;
+        count: number;
+        percentage: number;
+        won_revenue: number;
+        avg_deal: number;
+    }>;
+    by_sector?: Array<{
+        sector: string;
+        count: number;
+        percentage: number;
+        won_revenue: number;
+        avg_deal: number;
+    }>;
+    by_specification?: Array<{
+        specification_id: number;
+        specification_name: string;
+        count: number;
+        percentage: number;
+        won_revenue: number;
+        avg_deal: number;
+    }>;
+    by_lead_source?: Array<{
+        lead_source_id: number;
+        lead_source_name: string;
         count: number;
         percentage: number;
         won_revenue: number;

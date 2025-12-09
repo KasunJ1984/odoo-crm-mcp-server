@@ -308,6 +308,33 @@ export function formatLostAnalysis(analysis, groupBy, format) {
         }
         output += '\n';
     }
+    if (groupBy === 'sector' && analysis.by_sector && analysis.by_sector.length > 0) {
+        output += `### By Sector\n`;
+        output += '| Sector | Count | % of Total | Lost Revenue | Avg Deal |\n';
+        output += '|--------|-------|------------|--------------|----------|\n';
+        for (const item of analysis.by_sector) {
+            output += `| ${item.sector} | ${item.count.toLocaleString()} | ${formatPercent(item.percentage)} | ${formatCurrency(item.lost_revenue)} | ${formatCurrency(item.avg_deal)} |\n`;
+        }
+        output += '\n';
+    }
+    if (groupBy === 'specification' && analysis.by_specification && analysis.by_specification.length > 0) {
+        output += `### By Specification\n`;
+        output += '| Specification | Count | % of Total | Lost Revenue | Avg Deal |\n';
+        output += '|---------------|-------|------------|--------------|----------|\n';
+        for (const item of analysis.by_specification) {
+            output += `| ${item.specification_name} | ${item.count.toLocaleString()} | ${formatPercent(item.percentage)} | ${formatCurrency(item.lost_revenue)} | ${formatCurrency(item.avg_deal)} |\n`;
+        }
+        output += '\n';
+    }
+    if (groupBy === 'lead_source' && analysis.by_lead_source && analysis.by_lead_source.length > 0) {
+        output += `### By Lead Source\n`;
+        output += '| Lead Source | Count | % of Total | Lost Revenue | Avg Deal |\n';
+        output += '|-------------|-------|------------|--------------|----------|\n';
+        for (const item of analysis.by_lead_source) {
+            output += `| ${item.lead_source_name} | ${item.count.toLocaleString()} | ${formatPercent(item.percentage)} | ${formatCurrency(item.lost_revenue)} | ${formatCurrency(item.avg_deal)} |\n`;
+        }
+        output += '\n';
+    }
     // Top lost opportunities
     if (analysis.top_lost && analysis.top_lost.length > 0) {
         output += `### Top ${analysis.top_lost.length} Largest Lost Opportunities\n`;
@@ -477,6 +504,33 @@ export function formatWonAnalysis(analysis, groupBy, format) {
         output += '|--------|-------|------------|-------------|----------|\n';
         for (const item of analysis.by_source) {
             output += `| ${item.source_name} | ${item.count.toLocaleString()} | ${formatPercent(item.percentage)} | ${formatCurrency(item.won_revenue)} | ${formatCurrency(item.avg_deal)} |\n`;
+        }
+        output += '\n';
+    }
+    if (groupBy === 'sector' && analysis.by_sector && analysis.by_sector.length > 0) {
+        output += `### By Sector\n`;
+        output += '| Sector | Count | % of Total | Won Revenue | Avg Deal |\n';
+        output += '|--------|-------|------------|-------------|----------|\n';
+        for (const item of analysis.by_sector) {
+            output += `| ${item.sector} | ${item.count.toLocaleString()} | ${formatPercent(item.percentage)} | ${formatCurrency(item.won_revenue)} | ${formatCurrency(item.avg_deal)} |\n`;
+        }
+        output += '\n';
+    }
+    if (groupBy === 'specification' && analysis.by_specification && analysis.by_specification.length > 0) {
+        output += `### By Specification\n`;
+        output += '| Specification | Count | % of Total | Won Revenue | Avg Deal |\n';
+        output += '|---------------|-------|------------|-------------|----------|\n';
+        for (const item of analysis.by_specification) {
+            output += `| ${item.specification_name} | ${item.count.toLocaleString()} | ${formatPercent(item.percentage)} | ${formatCurrency(item.won_revenue)} | ${formatCurrency(item.avg_deal)} |\n`;
+        }
+        output += '\n';
+    }
+    if (groupBy === 'lead_source' && analysis.by_lead_source && analysis.by_lead_source.length > 0) {
+        output += `### By Lead Source\n`;
+        output += '| Lead Source | Count | % of Total | Won Revenue | Avg Deal |\n';
+        output += '|-------------|-------|------------|-------------|----------|\n';
+        for (const item of analysis.by_lead_source) {
+            output += `| ${item.lead_source_name} | ${item.count.toLocaleString()} | ${formatPercent(item.percentage)} | ${formatCurrency(item.won_revenue)} | ${formatCurrency(item.avg_deal)} |\n`;
         }
         output += '\n';
     }
