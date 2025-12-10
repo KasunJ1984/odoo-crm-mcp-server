@@ -2,6 +2,7 @@ import xmlrpc from 'xmlrpc';
 const { createClient, createSecureClient } = xmlrpc;
 import { withTimeout, TIMEOUTS, TimeoutError } from '../utils/timeout.js';
 import { EXPORT_CONFIG } from '../constants.js';
+import { cache, CACHE_TTL, CACHE_KEYS } from '../utils/cache.js';
 // Odoo XML-RPC API client with timeout protection
 export class OdooClient {
     config;
@@ -187,6 +188,92 @@ export class OdooClient {
             limit: options.limit,
             order: options.order,
         }), TIMEOUTS.EXPORT_BATCH, `Export batch timed out (offset: ${options.offset}, limit: ${options.limit})`);
+    }
+    // ============================================================================
+    // CACHED METHODS - For frequently accessed, rarely-changing data
+    // ============================================================================
+    /**
+     * Get CRM stages with caching (30 minute TTL)
+     * Stages rarely change, so caching significantly reduces API calls
+     */
+    async getStagesCached() {
+        const cacheKey = CACHE_KEYS.stages();
+        // Check cache first
+        const cached = cache.get(cacheKey);
+        if (cached) {
+            return cached;
+        }
+        // Fetch from Odoo
+        const stages = await this.searchRead('crm.stage', [], ['id', 'name', 'sequence', 'is_won', 'fold'], { order: 'sequence asc', limit: 100 });
+        // Cache the result
+        cache.set(cacheKey, stages, CACHE_TTL.STAGES);
+        return stages;
+    }
+    /**
+     * Get lost reasons with caching (30 minute TTL)
+     * Lost reasons rarely change, so caching significantly reduces API calls
+     */
+    async getLostReasonsCached(includeInactive = false) {
+        const cacheKey = CACHE_KEYS.lostReasons(includeInactive);
+        const cached = cache.get(cacheKey);
+        if (cached) {
+            return cached;
+        }
+        const domain = includeInactive ? [] : [['active', '=', true]];
+        const reasons = await this.searchRead('crm.lost.reason', domain, ['id', 'name', 'active'], { order: 'name asc', limit: 100 });
+        cache.set(cacheKey, reasons, CACHE_TTL.LOST_REASONS);
+        return reasons;
+    }
+    /**
+     * Get sales teams with caching (15 minute TTL)
+     * Teams change occasionally, so shorter cache duration
+     */
+    async getTeamsCached() {
+        const cacheKey = CACHE_KEYS.teams();
+        const cached = cache.get(cacheKey);
+        if (cached) {
+            return cached;
+        }
+        const teams = await this.searchRead('crm.team', [['active', '=', true]], ['id', 'name', 'active', 'member_ids'], { order: 'name asc', limit: 100 });
+        cache.set(cacheKey, teams, CACHE_TTL.TEAMS);
+        return teams;
+    }
+    /**
+     * Get salespeople with caching (15 minute TTL)
+     * User list changes occasionally, so shorter cache duration
+     */
+    async getSalespeopleCached(teamId) {
+        const cacheKey = CACHE_KEYS.salespeople(teamId);
+        const cached = cache.get(cacheKey);
+        if (cached) {
+            return cached;
+        }
+        // Build domain - users who are not shared/portal users
+        const domain = [['share', '=', false]];
+        if (teamId) {
+            domain.push(['sale_team_id', '=', teamId]);
+        }
+        const users = await this.searchRead('res.users', domain, ['id', 'name', 'email', 'login', 'active'], { order: 'name asc', limit: 200 });
+        cache.set(cacheKey, users, CACHE_TTL.SALESPEOPLE);
+        return users;
+    }
+    /**
+     * Invalidate specific cache entries or all cache
+     * @param keys - Specific cache keys to invalidate, or undefined to clear all
+     */
+    invalidateCache(keys) {
+        if (keys) {
+            keys.forEach(key => cache.delete(key));
+        }
+        else {
+            cache.clear();
+        }
+    }
+    /**
+     * Get cache statistics for monitoring
+     */
+    getCacheStats() {
+        return cache.stats();
     }
 }
 // Singleton instance - created from environment variables

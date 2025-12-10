@@ -65,12 +65,15 @@ import {
   type TeamsListInput,
   type ComparePerformanceInput,
   type ActivitySearchInput,
-  type ExportDataInput
+  type ExportDataInput,
+  CacheStatusSchema,
+  type CacheStatusInput
 } from '../schemas/index.js';
 import { CRM_FIELDS, CONTEXT_LIMITS, ResponseFormat, EXPORT_CONFIG } from '../constants.js';
 import type { CrmLead, CrmStage, ResPartner, PaginatedResponse, PipelineSummary, SalesAnalytics, ActivitySummary, CrmLostReason, LostReasonWithCount, LostAnalysisSummary, LostOpportunity, LostTrendsSummary, WonOpportunity, WonAnalysisSummary, WonTrendsSummary, SalespersonWithStats, SalesTeamWithStats, PerformanceComparison, ActivityDetail, ExportResult, PipelineSummaryWithWeighted, CrmTeam, ResUsers, OdooRecord, ExportFormat } from '../types.js';
 import { ExportWriter, generateExportFilename, getOutputDirectory, getMimeType } from '../utils/export-writer.js';
 import { convertDateToUtc, getDaysAgoUtc } from '../utils/timezone.js';
+import { cache, CACHE_KEYS } from '../utils/cache.js';
 
 // Register all CRM tools
 export function registerCrmTools(server: McpServer): void {
@@ -347,13 +350,8 @@ Returns: count, total revenue, avg probability per stage, plus optional top oppo
           domain.push(['user_id', '=', params.user_id]);
         }
         
-        // Get stages
-        const stages = await client.searchRead<CrmStage>(
-          'crm.stage',
-          [],
-          ['id', 'name', 'sequence', 'is_won'],
-          { order: 'sequence asc' }
-        );
+        // Get stages (cached for 30 minutes)
+        const stages = await client.getStagesCached();
         
         // Get aggregated data by stage
         const groupedData = await client.readGroup(
@@ -846,12 +844,8 @@ Use this to understand the pipeline structure and get stage IDs for filtering.
       try {
         const client = getOdooClient();
 
-        const stages = await client.searchRead<CrmStage>(
-          'crm.stage',
-          [],
-          ['id', 'name', 'sequence', 'is_won', 'fold'],
-          { order: 'sequence asc' }
-        );
+        // Get stages (cached for 30 minutes)
+        const stages = await client.getStagesCached();
 
         if (params.response_format === ResponseFormat.JSON) {
           return {
@@ -914,16 +908,8 @@ Returns the list of predefined reasons for losing opportunities, with a count of
         let reasonsWithCounts: LostReasonWithCount[] = [];
 
         try {
-          // Build domain for lost reasons
-          const domain: unknown[] = params.include_inactive ? [] : [['active', '=', true]];
-
-          // Get lost reasons from crm.lost.reason model
-          const reasons = await client.searchRead<CrmLostReason>(
-            'crm.lost.reason',
-            domain,
-            CRM_FIELDS.LOST_REASON,
-            { order: 'name asc' }
-          );
+          // Get lost reasons (cached for 30 minutes)
+          const reasons = await client.getLostReasonsCached(params.include_inactive);
 
           // Get count of opportunities per reason using read_group
           const countsByReason = await client.readGroup(
@@ -2426,13 +2412,8 @@ Returns a list of teams with their IDs and optionally member count and opportuni
       try {
         const client = getOdooClient();
 
-        // Get all teams
-        const teamsData = await client.searchRead<CrmTeam>(
-          'crm.team',
-          [['active', '=', true]],
-          CRM_FIELDS.TEAM_LIST,
-          { order: 'name asc' }
-        );
+        // Get all teams (cached for 15 minutes)
+        const teamsData = await client.getTeamsCached();
 
         const teams: SalesTeamWithStats[] = [];
 
@@ -2989,6 +2970,107 @@ Returns a paginated list of activities with details including type, due date, st
         return {
           isError: true,
           content: [{ type: 'text', text: `Error exporting data: ${message}` }]
+        };
+      }
+    }
+  );
+
+  // ============================================
+  // TOOL: Cache Management
+  // ============================================
+  server.registerTool(
+    'odoo_crm_cache_status',
+    {
+      title: 'Cache Status & Management',
+      description: `View cache statistics and optionally clear cached data.
+
+The server caches frequently accessed, rarely-changing data to improve performance:
+- **Stages** (30 min TTL): Pipeline stages
+- **Lost Reasons** (30 min TTL): Lost reason options
+- **Teams** (15 min TTL): Sales teams
+- **Salespeople** (15 min TTL): User list
+
+**When to use:**
+- Check what data is currently cached
+- Force refresh of cached data if it seems stale
+- Troubleshoot issues where data changes aren't reflected
+
+**Note:** Cache is automatically refreshed when TTL expires. Manual clearing is rarely needed.`,
+      inputSchema: CacheStatusSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false
+      }
+    },
+    async (params: CacheStatusInput) => {
+      try {
+        const client = getOdooClient();
+
+        if (params.action === 'clear') {
+          // Clear specific cache type or all
+          if (params.cache_type === 'all') {
+            client.invalidateCache();
+            return {
+              content: [{ type: 'text', text: '## Cache Cleared\n\nAll cached data has been invalidated. Next API calls will fetch fresh data from Odoo.' }]
+            };
+          } else {
+            // Map cache_type to cache key
+            const keyMap: Record<string, string | undefined> = {
+              stages: CACHE_KEYS.stages(),
+              lost_reasons: CACHE_KEYS.lostReasons(false),
+              teams: CACHE_KEYS.teams(),
+              salespeople: CACHE_KEYS.salespeople()
+            };
+
+            const cacheKey = keyMap[params.cache_type];
+            if (cacheKey) {
+              cache.delete(cacheKey);
+              // Also clear with different params if applicable
+              if (params.cache_type === 'lost_reasons') {
+                cache.delete(CACHE_KEYS.lostReasons(true));
+              }
+              return {
+                content: [{ type: 'text', text: `## Cache Cleared\n\n**${params.cache_type}** cache has been invalidated. Next call will fetch fresh data from Odoo.` }]
+              };
+            }
+          }
+        }
+
+        // Return cache status
+        const stats = client.getCacheStats();
+
+        let output = '## Cache Status\n\n';
+        output += `**Total cached entries:** ${stats.size}\n\n`;
+
+        if (stats.size === 0) {
+          output += '*Cache is empty. Data will be fetched from Odoo on next request.*\n';
+        } else {
+          output += '### Cached Data:\n';
+          for (const key of stats.keys) {
+            // Parse the key to provide friendly name
+            let friendlyName = key;
+            if (key.startsWith('crm:stages')) friendlyName = 'Pipeline Stages';
+            else if (key.startsWith('crm:lost_reasons')) friendlyName = `Lost Reasons (${key.includes('true') ? 'including inactive' : 'active only'})`;
+            else if (key.startsWith('crm:teams')) friendlyName = 'Sales Teams';
+            else if (key.startsWith('crm:salespeople')) friendlyName = key.includes('team:') ? `Salespeople (team ${key.split(':').pop()})` : 'All Salespeople';
+
+            output += `- ${friendlyName}\n`;
+          }
+          output += '\n*Cache entries automatically expire. Use action="clear" to force refresh.*\n';
+        }
+
+        return {
+          content: [{ type: 'text', text: output }],
+          structuredContent: { cache_size: stats.size, cached_keys: stats.keys }
+        };
+
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        return {
+          isError: true,
+          content: [{ type: 'text', text: `Error accessing cache: ${message}` }]
         };
       }
     }

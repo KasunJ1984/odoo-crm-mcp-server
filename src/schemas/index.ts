@@ -618,6 +618,16 @@ export const ExportDataSchema = z.object({
     .describe('Custom filename (without extension). Default: auto-generated with timestamp')
 }).strict();
 
+// Cache management schema
+export const CacheStatusSchema = z.object({
+  action: z.enum(['status', 'clear'])
+    .default('status')
+    .describe("Action: 'status' to view cache info, 'clear' to invalidate cached data"),
+  cache_type: z.enum(['all', 'stages', 'lost_reasons', 'teams', 'salespeople'])
+    .default('all')
+    .describe("Which cache to clear (only used with action='clear'). 'all' clears everything.")
+}).strict();
+
 // Export inferred types
 export type LeadSearchInput = z.infer<typeof LeadSearchSchema>;
 export type LeadDetailInput = z.infer<typeof LeadDetailSchema>;
@@ -638,3 +648,4 @@ export type TeamsListInput = z.infer<typeof TeamsListSchema>;
 export type ComparePerformanceInput = z.infer<typeof ComparePerformanceSchema>;
 export type ActivitySearchInput = z.infer<typeof ActivitySearchSchema>;
 export type ExportDataInput = z.infer<typeof ExportDataSchema>;
+export type CacheStatusInput = z.infer<typeof CacheStatusSchema>;
