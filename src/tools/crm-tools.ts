@@ -3044,7 +3044,30 @@ The server caches frequently accessed, rarely-changing data to improve performan
         let output = '## Cache Status\n\n';
         output += `**Total cached entries:** ${stats.size}\n\n`;
 
+        // Add hit/miss metrics section
+        output += '### Performance Metrics\n';
+        output += `- **Cache hits:** ${stats.metrics.hits}\n`;
+        output += `- **Cache misses:** ${stats.metrics.misses}\n`;
+        output += `- **Hit rate:** ${stats.metrics.hitRate}%\n`;
+
+        // Add helpful interpretation
+        if (stats.metrics.hits + stats.metrics.misses > 0) {
+          if (stats.metrics.hitRate >= 80) {
+            output += '\n*Excellent cache efficiency - most requests served from cache.*\n';
+          } else if (stats.metrics.hitRate >= 50) {
+            output += '\n*Good cache efficiency - cache is saving many API calls.*\n';
+          } else if (stats.metrics.hitRate > 0) {
+            output += '\n*Low hit rate - cache may be expiring frequently or data is accessed once.*\n';
+          } else {
+            output += '\n*No cache hits yet - data will be cached on first access.*\n';
+          }
+        } else {
+          output += '\n*No cache requests yet.*\n';
+        }
+        output += '\n';
+
         if (stats.size === 0) {
+          output += '### Cached Data:\n';
           output += '*Cache is empty. Data will be fetched from Odoo on next request.*\n';
         } else {
           output += '### Cached Data:\n';
@@ -3063,7 +3086,15 @@ The server caches frequently accessed, rarely-changing data to improve performan
 
         return {
           content: [{ type: 'text', text: output }],
-          structuredContent: { cache_size: stats.size, cached_keys: stats.keys }
+          structuredContent: {
+            cache_size: stats.size,
+            cached_keys: stats.keys,
+            metrics: {
+              hits: stats.metrics.hits,
+              misses: stats.metrics.misses,
+              hit_rate_percent: stats.metrics.hitRate
+            }
+          }
         };
 
       } catch (error) {

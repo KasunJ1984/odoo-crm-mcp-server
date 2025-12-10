@@ -273,7 +273,12 @@ export class OdooClient {
      * Get cache statistics for monitoring
      */
     getCacheStats() {
-        return cache.stats();
+        const stats = cache.stats();
+        const metrics = cache.getMetrics();
+        return {
+            ...stats,
+            metrics
+        };
     }
 }
 // Singleton instance - created from environment variables

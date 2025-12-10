@@ -12,19 +12,26 @@ interface CacheEntry<T> {
 
 export class MemoryCache {
   private cache: Map<string, CacheEntry<unknown>> = new Map();
+  private hits: number = 0;    // Count successful cache retrievals
+  private misses: number = 0;  // Count failed cache retrievals (missing or expired)
 
   /**
    * Get cached value if exists and not expired
    */
   get<T>(key: string): T | null {
     const entry = this.cache.get(key);
-    if (!entry) return null;
-
-    if (Date.now() > entry.expiresAt) {
-      this.cache.delete(key);
+    if (!entry) {
+      this.misses++;  // Track miss when key not found
       return null;
     }
 
+    if (Date.now() > entry.expiresAt) {
+      this.cache.delete(key);
+      this.misses++;  // Track miss when data expired
+      return null;
+    }
+
+    this.hits++;  // Track hit on successful retrieval
     return entry.data as T;
   }
 
@@ -40,9 +47,18 @@ export class MemoryCache {
 
   /**
    * Check if key exists and is not expired
+   * Note: Does not increment hit/miss counters
    */
   has(key: string): boolean {
-    return this.get(key) !== null;
+    const entry = this.cache.get(key);
+    if (!entry) return false;
+
+    if (Date.now() > entry.expiresAt) {
+      this.cache.delete(key);
+      return false;
+    }
+
+    return true;
   }
 
   /**
@@ -53,10 +69,12 @@ export class MemoryCache {
   }
 
   /**
-   * Clear all cache entries
+   * Clear all cache entries and reset metrics
    */
   clear(): void {
     this.cache.clear();
+    this.hits = 0;
+    this.misses = 0;
   }
 
   /**
@@ -84,6 +102,29 @@ export class MemoryCache {
       size: this.cache.size,
       keys: Array.from(this.cache.keys())
     };
+  }
+
+  /**
+   * Get cache hit/miss metrics
+   * @returns Object containing hits, misses, and calculated hitRate (0-100%)
+   */
+  getMetrics(): { hits: number; misses: number; hitRate: number } {
+    const total = this.hits + this.misses;
+    // Avoid division by zero - if no requests yet, return 0% hit rate
+    const hitRate = total > 0 ? Math.round((this.hits / total) * 100) : 0;
+    return {
+      hits: this.hits,
+      misses: this.misses,
+      hitRate
+    };
+  }
+
+  /**
+   * Reset hit/miss counters (useful for testing or periodic reset)
+   */
+  resetMetrics(): void {
+    this.hits = 0;
+    this.misses = 0;
   }
 }
 

@@ -73,6 +73,11 @@ export declare class OdooClient {
     getCacheStats(): {
         size: number;
         keys: string[];
+        metrics: {
+            hits: number;
+            misses: number;
+            hitRate: number;
+        };
     };
 }
 export declare function getOdooClient(): OdooClient;

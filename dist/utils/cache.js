@@ -6,17 +6,23 @@
  */
 export class MemoryCache {
     cache = new Map();
+    hits = 0; // Count successful cache retrievals
+    misses = 0; // Count failed cache retrievals (missing or expired)
     /**
      * Get cached value if exists and not expired
      */
     get(key) {
         const entry = this.cache.get(key);
-        if (!entry)
-            return null;
-        if (Date.now() > entry.expiresAt) {
-            this.cache.delete(key);
+        if (!entry) {
+            this.misses++; // Track miss when key not found
             return null;
         }
+        if (Date.now() > entry.expiresAt) {
+            this.cache.delete(key);
+            this.misses++; // Track miss when data expired
+            return null;
+        }
+        this.hits++; // Track hit on successful retrieval
         return entry.data;
     }
     /**
@@ -30,9 +36,17 @@ export class MemoryCache {
     }
     /**
      * Check if key exists and is not expired
+     * Note: Does not increment hit/miss counters
      */
     has(key) {
-        return this.get(key) !== null;
+        const entry = this.cache.get(key);
+        if (!entry)
+            return false;
+        if (Date.now() > entry.expiresAt) {
+            this.cache.delete(key);
+            return false;
+        }
+        return true;
     }
     /**
      * Delete specific key
@@ -41,10 +55,12 @@ export class MemoryCache {
         return this.cache.delete(key);
     }
     /**
-     * Clear all cache entries
+     * Clear all cache entries and reset metrics
      */
     clear() {
         this.cache.clear();
+        this.hits = 0;
+        this.misses = 0;
     }
     /**
      * Clear expired entries (housekeeping)
@@ -70,6 +86,27 @@ export class MemoryCache {
             size: this.cache.size,
             keys: Array.from(this.cache.keys())
         };
+    }
+    /**
+     * Get cache hit/miss metrics
+     * @returns Object containing hits, misses, and calculated hitRate (0-100%)
+     */
+    getMetrics() {
+        const total = this.hits + this.misses;
+        // Avoid division by zero - if no requests yet, return 0% hit rate
+        const hitRate = total > 0 ? Math.round((this.hits / total) * 100) : 0;
+        return {
+            hits: this.hits,
+            misses: this.misses,
+            hitRate
+        };
+    }
+    /**
+     * Reset hit/miss counters (useful for testing or periodic reset)
+     */
+    resetMetrics() {
+        this.hits = 0;
+        this.misses = 0;
     }
 }
 // Singleton cache instance

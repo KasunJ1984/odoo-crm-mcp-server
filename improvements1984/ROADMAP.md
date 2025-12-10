@@ -22,7 +22,7 @@
 
 Estimated total: ~6 hours | Test after each item
 
-### [ ] 1.1 Add Cache Hit/Miss Metrics
+### [x] 1.1 Add Cache Hit/Miss Metrics
 **Impact:** Monitor and optimize cache performance
 **Effort:** ~1 hour
 **File:** `src/utils/cache.ts`
@@ -199,7 +199,7 @@ const cache = new LRUCache({ max: 500, ttl: 1000 * 60 * 30 });
 | Date | Item | Status | Commit | Notes |
 |------|------|--------|--------|-------|
 | 2025-12-10 | Initial caching | Done | da12a75 | Stages, lost reasons, teams cached |
-| | | | | |
+| 2025-12-10 | 1.1 Cache Hit/Miss Metrics | Done | bfbeffb | Added hits/misses counters, getMetrics(), updated cache_status tool |
 
 ---
 

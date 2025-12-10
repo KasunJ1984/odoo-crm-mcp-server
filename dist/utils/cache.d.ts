@@ -6,6 +6,8 @@
  */
 export declare class MemoryCache {
     private cache;
+    private hits;
+    private misses;
     /**
      * Get cached value if exists and not expired
      */
@@ -16,6 +18,7 @@ export declare class MemoryCache {
     set<T>(key: string, data: T, ttlMs: number): void;
     /**
      * Check if key exists and is not expired
+     * Note: Does not increment hit/miss counters
      */
     has(key: string): boolean;
     /**
@@ -23,7 +26,7 @@ export declare class MemoryCache {
      */
     delete(key: string): boolean;
     /**
-     * Clear all cache entries
+     * Clear all cache entries and reset metrics
      */
     clear(): void;
     /**
@@ -37,6 +40,19 @@ export declare class MemoryCache {
         size: number;
         keys: string[];
     };
+    /**
+     * Get cache hit/miss metrics
+     * @returns Object containing hits, misses, and calculated hitRate (0-100%)
+     */
+    getMetrics(): {
+        hits: number;
+        misses: number;
+        hitRate: number;
+    };
+    /**
+     * Reset hit/miss counters (useful for testing or periodic reset)
+     */
+    resetMetrics(): void;
 }
 export declare const cache: MemoryCache;
 export declare const CACHE_TTL: {

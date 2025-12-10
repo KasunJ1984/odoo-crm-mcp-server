@@ -435,8 +435,17 @@ export class OdooClient {
   /**
    * Get cache statistics for monitoring
    */
-  getCacheStats(): { size: number; keys: string[] } {
-    return cache.stats();
+  getCacheStats(): {
+    size: number;
+    keys: string[];
+    metrics: { hits: number; misses: number; hitRate: number }
+  } {
+    const stats = cache.stats();
+    const metrics = cache.getMetrics();
+    return {
+      ...stats,
+      metrics
+    };
   }
 }
 
