@@ -3,6 +3,7 @@ const { createClient, createSecureClient } = xmlrpc;
 type Client = ReturnType<typeof createClient>;
 import type { OdooConfig, OdooRecord, ExportProgress, CrmStage, CrmLostReason, CrmTeam, ResUsers } from '../types.js';
 import { withTimeout, TIMEOUTS, TimeoutError } from '../utils/timeout.js';
+import { executeWithRetry } from '../utils/retry.js';
 import { EXPORT_CONFIG } from '../constants.js';
 import { cache, CACHE_TTL, CACHE_KEYS } from '../utils/cache.js';
 
@@ -94,7 +95,7 @@ export class OdooClient {
 
     try {
       return await withTimeout(
-        this._doExecute<T>(uid, model, method, args, kwargs),
+        executeWithRetry(() => this._doExecute<T>(uid, model, method, args, kwargs)),
         TIMEOUTS.API,
         `Odoo API call timed out (${model}.${method})`
       );
@@ -299,12 +300,14 @@ export class OdooClient {
     const uid = await this.authenticate();
 
     return withTimeout(
-      this._doExecute<T[]>(uid, model, 'search_read', [domain], {
-        fields,
-        offset: options.offset,
-        limit: options.limit,
-        order: options.order,
-      }),
+      executeWithRetry(() =>
+        this._doExecute<T[]>(uid, model, 'search_read', [domain], {
+          fields,
+          offset: options.offset,
+          limit: options.limit,
+          order: options.order,
+        })
+      ),
       TIMEOUTS.EXPORT_BATCH,
       `Export batch timed out (offset: ${options.offset}, limit: ${options.limit})`
     );

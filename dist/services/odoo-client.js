@@ -1,6 +1,7 @@
 import xmlrpc from 'xmlrpc';
 const { createClient, createSecureClient } = xmlrpc;
 import { withTimeout, TIMEOUTS, TimeoutError } from '../utils/timeout.js';
+import { executeWithRetry } from '../utils/retry.js';
 import { EXPORT_CONFIG } from '../constants.js';
 import { cache, CACHE_TTL, CACHE_KEYS } from '../utils/cache.js';
 // Odoo XML-RPC API client with timeout protection
@@ -67,7 +68,7 @@ export class OdooClient {
     async execute(model, method, args = [], kwargs = {}) {
         const uid = await this.authenticate();
         try {
-            return await withTimeout(this._doExecute(uid, model, method, args, kwargs), TIMEOUTS.API, `Odoo API call timed out (${model}.${method})`);
+            return await withTimeout(executeWithRetry(() => this._doExecute(uid, model, method, args, kwargs)), TIMEOUTS.API, `Odoo API call timed out (${model}.${method})`);
         }
         catch (error) {
             if (error instanceof TimeoutError) {
@@ -182,12 +183,12 @@ export class OdooClient {
      */
     async searchReadWithTimeout(model, domain, fields, options) {
         const uid = await this.authenticate();
-        return withTimeout(this._doExecute(uid, model, 'search_read', [domain], {
+        return withTimeout(executeWithRetry(() => this._doExecute(uid, model, 'search_read', [domain], {
             fields,
             offset: options.offset,
             limit: options.limit,
             order: options.order,
-        }), TIMEOUTS.EXPORT_BATCH, `Export batch timed out (offset: ${options.offset}, limit: ${options.limit})`);
+        })), TIMEOUTS.EXPORT_BATCH, `Export batch timed out (offset: ${options.offset}, limit: ${options.limit})`);
     }
     // ============================================================================
     // CACHED METHODS - For frequently accessed, rarely-changing data

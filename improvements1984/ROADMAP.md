@@ -54,7 +54,7 @@ private misses = 0;
 
 ---
 
-### [ ] 1.3 Implement Retry Logic with Exponential Backoff
+### [x] 1.3 Implement Retry Logic with Exponential Backoff
 **Impact:** Resilience against transient Odoo failures
 **Effort:** ~2 hours
 **File:** `src/services/odoo-client.ts`
@@ -201,6 +201,7 @@ const cache = new LRUCache({ max: 500, ttl: 1000 * 60 * 30 });
 | 2025-12-10 | Initial caching | Done | da12a75 | Stages, lost reasons, teams cached |
 | 2025-12-10 | 1.1 Cache Hit/Miss Metrics | Done | bfbeffb | Added hits/misses counters, getMetrics(), updated cache_status tool |
 | 2025-12-10 | 1.2 Health Check Tool | Done | 4d54129 | New odoo_crm_health_check tool with latency, cache stats |
+| 2025-12-10 | 1.3 Retry Logic | Done | 893c2e4 | executeWithRetry with exponential backoff (1s, 2s, 4s) |
 
 ---
 
