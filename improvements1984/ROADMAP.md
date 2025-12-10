@@ -204,7 +204,7 @@ const cache = new LRUCache({ max: 500, ttl: 1000 * 60 * 30 });
 | 2025-12-10 | 1.3 Retry Logic | Done | 5d29eb5 | executeWithRetry with exponential backoff (1s, 2s, 4s) |
 | 2025-12-10 | 1.4 Cache Warming | Done | f32c83e | warmCache() preloads stages, teams, lost_reasons on startup |
 | 2025-12-10 | 2.1 Stale-While-Revalidate | Done | 50a99af | getWithRefresh() returns stale data while refreshing in background |
-| 2025-12-10 | 2.2 LRU Eviction | Done | pending | lru-cache package with max 500 entries, auto-eviction |
+| 2025-12-10 | 2.2 LRU Eviction | Done | a2a18ba | lru-cache package with max 500 entries, auto-eviction |
 
 ---
 
