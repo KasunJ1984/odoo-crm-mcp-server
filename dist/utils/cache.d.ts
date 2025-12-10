@@ -1,14 +1,18 @@
 /**
- * Simple in-memory cache with TTL (Time To Live)
- * - No external dependencies
- * - Automatic expiration
+ * In-memory cache with TTL (Time To Live) and LRU eviction
+ * - Uses lru-cache for automatic eviction when max size reached
+ * - Stale-while-revalidate pattern for background refresh
  * - Type-safe
  */
+export declare const CACHE_CONFIG: {
+    readonly MAX_SIZE: 500;
+};
 export declare class MemoryCache {
     private cache;
     private hits;
     private misses;
     private refreshingKeys;
+    constructor();
     /**
      * Get cached value if exists and not expired
      */
