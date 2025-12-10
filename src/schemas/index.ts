@@ -628,6 +628,13 @@ export const CacheStatusSchema = z.object({
     .describe("Which cache to clear (only used with action='clear'). 'all' clears everything.")
 }).strict();
 
+// Health check schema
+export const HealthCheckSchema = z.object({
+  response_format: z.nativeEnum(ResponseFormat)
+    .default(ResponseFormat.MARKDOWN)
+    .describe("Output format: 'markdown' or 'json'")
+}).strict();
+
 // Export inferred types
 export type LeadSearchInput = z.infer<typeof LeadSearchSchema>;
 export type LeadDetailInput = z.infer<typeof LeadDetailSchema>;
@@ -649,3 +656,4 @@ export type ComparePerformanceInput = z.infer<typeof ComparePerformanceSchema>;
 export type ActivitySearchInput = z.infer<typeof ActivitySearchSchema>;
 export type ExportDataInput = z.infer<typeof ExportDataSchema>;
 export type CacheStatusInput = z.infer<typeof CacheStatusSchema>;
+export type HealthCheckInput = z.infer<typeof HealthCheckSchema>;

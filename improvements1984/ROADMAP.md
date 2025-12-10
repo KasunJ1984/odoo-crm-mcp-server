@@ -40,7 +40,7 @@ private misses = 0;
 
 ---
 
-### [ ] 1.2 Add Health Check Tool
+### [x] 1.2 Add Health Check Tool
 **Impact:** Debugging, monitoring, verify Odoo connectivity
 **Effort:** ~2 hours
 **Files:** `src/schemas/index.ts`, `src/tools/crm-tools.ts`
@@ -200,6 +200,7 @@ const cache = new LRUCache({ max: 500, ttl: 1000 * 60 * 30 });
 |------|------|--------|--------|-------|
 | 2025-12-10 | Initial caching | Done | da12a75 | Stages, lost reasons, teams cached |
 | 2025-12-10 | 1.1 Cache Hit/Miss Metrics | Done | bfbeffb | Added hits/misses counters, getMetrics(), updated cache_status tool |
+| 2025-12-10 | 1.2 Health Check Tool | Done | 4d54129 | New odoo_crm_health_check tool with latency, cache stats |
 
 ---
 

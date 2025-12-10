@@ -67,13 +67,16 @@ import {
   type ActivitySearchInput,
   type ExportDataInput,
   CacheStatusSchema,
-  type CacheStatusInput
+  type CacheStatusInput,
+  HealthCheckSchema,
+  type HealthCheckInput
 } from '../schemas/index.js';
 import { CRM_FIELDS, CONTEXT_LIMITS, ResponseFormat, EXPORT_CONFIG } from '../constants.js';
 import type { CrmLead, CrmStage, ResPartner, PaginatedResponse, PipelineSummary, SalesAnalytics, ActivitySummary, CrmLostReason, LostReasonWithCount, LostAnalysisSummary, LostOpportunity, LostTrendsSummary, WonOpportunity, WonAnalysisSummary, WonTrendsSummary, SalespersonWithStats, SalesTeamWithStats, PerformanceComparison, ActivityDetail, ExportResult, PipelineSummaryWithWeighted, CrmTeam, ResUsers, OdooRecord, ExportFormat } from '../types.js';
 import { ExportWriter, generateExportFilename, getOutputDirectory, getMimeType } from '../utils/export-writer.js';
 import { convertDateToUtc, getDaysAgoUtc } from '../utils/timezone.js';
 import { cache, CACHE_KEYS } from '../utils/cache.js';
+import { withTimeout, TIMEOUTS, TimeoutError } from '../utils/timeout.js';
 
 // Register all CRM tools
 export function registerCrmTools(server: McpServer): void {
@@ -3104,6 +3107,145 @@ The server caches frequently accessed, rarely-changing data to improve performan
           content: [{ type: 'text', text: `Error accessing cache: ${message}` }]
         };
       }
+    }
+  );
+
+  // ============================================
+  // TOOL: Health Check
+  // ============================================
+  server.registerTool(
+    'odoo_crm_health_check',
+    {
+      title: 'Health Check',
+      description: `Check Odoo CRM connectivity and server health.
+
+Verifies that the MCP server can connect to Odoo, measures API latency, and reports cache statistics.
+
+**When to use:**
+- Debugging connection issues
+- Verifying Odoo is accessible
+- Monitoring server health
+- Checking cache performance
+
+Returns: status (healthy/unhealthy), odoo_connected, latency_ms, cache_entries, cache_hit_rate`,
+      inputSchema: HealthCheckSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false
+      }
+    },
+    async (params: HealthCheckInput) => {
+      const result: {
+        status: 'healthy' | 'unhealthy';
+        odoo_connected: boolean;
+        latency_ms: number | null;
+        cache_entries: number;
+        cache_hit_rate: number;
+        error?: string;
+        odoo_url?: string;
+        odoo_database?: string;
+        timestamp: string;
+      } = {
+        status: 'unhealthy',
+        odoo_connected: false,
+        latency_ms: null,
+        cache_entries: 0,
+        cache_hit_rate: 0,
+        timestamp: new Date().toISOString()
+      };
+
+      try {
+        const client = getOdooClient();
+
+        // Get cache stats first (always works)
+        const cacheStats = client.getCacheStats();
+        result.cache_entries = cacheStats.size;
+        result.cache_hit_rate = cacheStats.metrics.hitRate;
+
+        // Reset UID to force fresh authentication test
+        client.resetAuthCache();
+
+        // Measure authentication latency (5 second timeout)
+        const startTime = Date.now();
+        try {
+          await withTimeout(
+            client.authenticate(),
+            TIMEOUTS.HEALTH_CHECK,
+            'Odoo health check timed out'
+          );
+          const endTime = Date.now();
+
+          result.status = 'healthy';
+          result.odoo_connected = true;
+          result.latency_ms = endTime - startTime;
+          result.odoo_url = process.env.ODOO_URL || 'not configured';
+          result.odoo_database = process.env.ODOO_DB || 'not configured';
+
+        } catch (authError) {
+          result.odoo_connected = false;
+          result.latency_ms = Date.now() - startTime;
+
+          if (authError instanceof TimeoutError) {
+            result.error = `Connection timed out after ${TIMEOUTS.HEALTH_CHECK}ms`;
+          } else {
+            result.error = authError instanceof Error ? authError.message : 'Unknown authentication error';
+          }
+        }
+
+      } catch (error) {
+        result.error = error instanceof Error ? error.message : 'Unknown error';
+      }
+
+      // Format output
+      if (params.response_format === ResponseFormat.JSON) {
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          structuredContent: result
+        };
+      }
+
+      // Markdown format
+      let output = `## Health Check\n\n`;
+      output += `**Status:** ${result.status === 'healthy' ? 'Healthy' : 'Unhealthy'}\n`;
+      output += `**Timestamp:** ${result.timestamp}\n\n`;
+
+      output += `### Odoo Connectivity\n`;
+      output += `- **Connected:** ${result.odoo_connected ? 'Yes' : 'No'}\n`;
+      if (result.latency_ms !== null) {
+        output += `- **Latency:** ${result.latency_ms}ms\n`;
+      }
+      if (result.odoo_url) {
+        output += `- **URL:** ${result.odoo_url}\n`;
+      }
+      if (result.odoo_database) {
+        output += `- **Database:** ${result.odoo_database}\n`;
+      }
+      if (result.error) {
+        output += `- **Error:** ${result.error}\n`;
+      }
+
+      output += `\n### Cache Statistics\n`;
+      output += `- **Cached Entries:** ${result.cache_entries}\n`;
+      output += `- **Hit Rate:** ${result.cache_hit_rate}%\n`;
+
+      if (result.status === 'healthy') {
+        if (result.latency_ms !== null && result.latency_ms < 500) {
+          output += `\n*Connection is fast and responsive.*`;
+        } else if (result.latency_ms !== null && result.latency_ms < 2000) {
+          output += `\n*Connection is working but latency is moderate.*`;
+        } else {
+          output += `\n*Connection is slow - check network or Odoo server load.*`;
+        }
+      } else {
+        output += `\n*Unable to connect to Odoo. Check credentials and network connectivity.*`;
+      }
+
+      return {
+        content: [{ type: 'text', text: output }],
+        structuredContent: result
+      };
     }
   );
 }

@@ -447,6 +447,14 @@ export class OdooClient {
       metrics
     };
   }
+
+  /**
+   * Reset the cached UID to force a fresh authentication test.
+   * Used by health check to verify current connectivity.
+   */
+  resetAuthCache(): void {
+    this.uid = null;
+  }
 }
 
 // Singleton instance - created from environment variables

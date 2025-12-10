@@ -606,4 +606,10 @@ export const CacheStatusSchema = z.object({
         .default('all')
         .describe("Which cache to clear (only used with action='clear'). 'all' clears everything.")
 }).strict();
+// Health check schema
+export const HealthCheckSchema = z.object({
+    response_format: z.nativeEnum(ResponseFormat)
+        .default(ResponseFormat.MARKDOWN)
+        .describe("Output format: 'markdown' or 'json'")
+}).strict();
 //# sourceMappingURL=index.js.map

@@ -587,6 +587,13 @@ export declare const CacheStatusSchema: z.ZodObject<{
     action?: "status" | "clear" | undefined;
     cache_type?: "salespeople" | "teams" | "all" | "stages" | "lost_reasons" | undefined;
 }>;
+export declare const HealthCheckSchema: z.ZodObject<{
+    response_format: z.ZodDefault<z.ZodNativeEnum<typeof ResponseFormat>>;
+}, "strict", z.ZodTypeAny, {
+    response_format: ResponseFormat;
+}, {
+    response_format?: ResponseFormat | undefined;
+}>;
 export type LeadSearchInput = z.infer<typeof LeadSearchSchema>;
 export type LeadDetailInput = z.infer<typeof LeadDetailSchema>;
 export type PipelineSummaryInput = z.infer<typeof PipelineSummarySchema>;
@@ -607,4 +614,5 @@ export type ComparePerformanceInput = z.infer<typeof ComparePerformanceSchema>;
 export type ActivitySearchInput = z.infer<typeof ActivitySearchSchema>;
 export type ExportDataInput = z.infer<typeof ExportDataSchema>;
 export type CacheStatusInput = z.infer<typeof CacheStatusSchema>;
+export type HealthCheckInput = z.infer<typeof HealthCheckSchema>;
 //# sourceMappingURL=index.d.ts.map

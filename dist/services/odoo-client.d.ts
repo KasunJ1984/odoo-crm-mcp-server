@@ -79,6 +79,11 @@ export declare class OdooClient {
             hitRate: number;
         };
     };
+    /**
+     * Reset the cached UID to force a fresh authentication test.
+     * Used by health check to verify current connectivity.
+     */
+    resetAuthCache(): void;
 }
 export declare function getOdooClient(): OdooClient;
 export declare function resetOdooClient(): void;
