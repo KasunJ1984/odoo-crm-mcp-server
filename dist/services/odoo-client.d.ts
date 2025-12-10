@@ -68,11 +68,11 @@ export declare class OdooClient {
      * Invalidate specific cache entries or all cache
      * @param keys - Specific cache keys to invalidate, or undefined to clear all
      */
-    invalidateCache(keys?: string[]): void;
+    invalidateCache(keys?: string[]): Promise<void>;
     /**
      * Get cache statistics for monitoring
      */
-    getCacheStats(): {
+    getCacheStats(): Promise<{
         size: number;
         keys: string[];
         metrics: {
@@ -80,7 +80,7 @@ export declare class OdooClient {
             misses: number;
             hitRate: number;
         };
-    };
+    }>;
     /**
      * Reset the cached UID to force a fresh authentication test.
      * Used by health check to verify current connectivity.

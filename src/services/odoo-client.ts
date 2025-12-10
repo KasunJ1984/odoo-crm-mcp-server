@@ -410,23 +410,23 @@ export class OdooClient {
    * Invalidate specific cache entries or all cache
    * @param keys - Specific cache keys to invalidate, or undefined to clear all
    */
-  invalidateCache(keys?: string[]): void {
+  async invalidateCache(keys?: string[]): Promise<void> {
     if (keys) {
-      keys.forEach(key => cache.delete(key));
+      await Promise.all(keys.map(key => cache.delete(key)));
     } else {
-      cache.clear();
+      await cache.clear();
     }
   }
 
   /**
    * Get cache statistics for monitoring
    */
-  getCacheStats(): {
+  async getCacheStats(): Promise<{
     size: number;
     keys: string[];
     metrics: { hits: number; misses: number; hitRate: number }
-  } {
-    const stats = cache.stats();
+  }> {
+    const stats = await cache.stats();
     const metrics = cache.getMetrics();
     return {
       ...stats,

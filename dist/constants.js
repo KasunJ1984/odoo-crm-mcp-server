@@ -127,4 +127,13 @@ export const CIRCUIT_BREAKER_CONFIG = {
     // Number of test requests allowed in HALF_OPEN state
     HALF_OPEN_MAX_ATTEMPTS: 1,
 };
+// Redis cache configuration (optional - for multi-instance deployments)
+export const REDIS_CONFIG = {
+    // Cache backend: 'memory' (default) or 'redis'
+    CACHE_TYPE: (process.env.CACHE_TYPE || 'memory'),
+    // Redis connection URL (only used when CACHE_TYPE='redis')
+    REDIS_URL: process.env.REDIS_URL || 'redis://localhost:6379',
+    // Prefix for all cache keys (to avoid conflicts with other apps)
+    KEY_PREFIX: process.env.CACHE_KEY_PREFIX || 'odoo-crm:',
+};
 //# sourceMappingURL=constants.js.map

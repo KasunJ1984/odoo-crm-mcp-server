@@ -145,15 +145,16 @@ const cache = new LRUCache({ max: 500, ttl: 1000 * 60 * 30 });
 
 ## Phase 3: Scale-Dependent (Implement When Needed)
 
-### [ ] 3.1 Redis Cache for Multi-Instance
+### [x] 3.1 Redis Cache for Multi-Instance
 **When:** Deploying multiple server instances
 **Effort:** ~8 hours
 **Dependencies:** `ioredis` package
+**Files:** `src/utils/cache-interface.ts` (new), `src/utils/cache-memory.ts` (new), `src/utils/cache-redis.ts` (new), `src/utils/cache.ts`, `src/constants.ts`
 
 ```typescript
-// Replace MemoryCache with Redis-backed cache
-// Enables shared cache across instances
-// Add REDIS_URL environment variable
+// Optional Redis cache via CACHE_TYPE=redis environment variable
+// Memory cache remains default for backward compatibility
+// Set REDIS_URL for Redis connection, CACHE_KEY_PREFIX for namespace
 ```
 
 ---
@@ -207,6 +208,7 @@ const cache = new LRUCache({ max: 500, ttl: 1000 * 60 * 30 });
 | 2025-12-10 | 2.1 Stale-While-Revalidate | Done | 50a99af | getWithRefresh() returns stale data while refreshing in background |
 | 2025-12-10 | 2.2 LRU Eviction | Done | a2a18ba | lru-cache package with max 500 entries, auto-eviction |
 | 2025-12-11 | 2.3 Circuit Breaker | Done | be1fe0a | CircuitBreaker class with CLOSED/OPEN/HALF_OPEN states |
+| 2025-12-11 | 3.1 Redis Cache | Done | pending | Optional Redis cache with ioredis, memory cache as default |
 
 ---
 

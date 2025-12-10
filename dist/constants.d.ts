@@ -40,4 +40,9 @@ export declare const CIRCUIT_BREAKER_CONFIG: {
     readonly RESET_TIMEOUT_MS: 60000;
     readonly HALF_OPEN_MAX_ATTEMPTS: 1;
 };
+export declare const REDIS_CONFIG: {
+    readonly CACHE_TYPE: "memory" | "redis";
+    readonly REDIS_URL: string;
+    readonly KEY_PREFIX: string;
+};
 //# sourceMappingURL=constants.d.ts.map

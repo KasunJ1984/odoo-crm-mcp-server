@@ -2240,7 +2240,7 @@ The server caches frequently accessed, rarely-changing data to improve performan
             if (params.action === 'clear') {
                 // Clear specific cache type or all
                 if (params.cache_type === 'all') {
-                    client.invalidateCache();
+                    await client.invalidateCache();
                     return {
                         content: [{ type: 'text', text: '## Cache Cleared\n\nAll cached data has been invalidated. Next API calls will fetch fresh data from Odoo.' }]
                     };
@@ -2255,10 +2255,10 @@ The server caches frequently accessed, rarely-changing data to improve performan
                     };
                     const cacheKey = keyMap[params.cache_type];
                     if (cacheKey) {
-                        cache.delete(cacheKey);
+                        await cache.delete(cacheKey);
                         // Also clear with different params if applicable
                         if (params.cache_type === 'lost_reasons') {
-                            cache.delete(CACHE_KEYS.lostReasons(true));
+                            await cache.delete(CACHE_KEYS.lostReasons(true));
                         }
                         return {
                             content: [{ type: 'text', text: `## Cache Cleared\n\n**${params.cache_type}** cache has been invalidated. Next call will fetch fresh data from Odoo.` }]
@@ -2267,7 +2267,7 @@ The server caches frequently accessed, rarely-changing data to improve performan
                 }
             }
             // Return cache status
-            const stats = client.getCacheStats();
+            const stats = await client.getCacheStats();
             let output = '## Cache Status\n\n';
             output += `**Total cached entries:** ${stats.size}\n\n`;
             // Add hit/miss metrics section
@@ -2377,7 +2377,7 @@ Returns: status (healthy/unhealthy), odoo_connected, latency_ms, cache_entries, 
         try {
             const client = getOdooClient();
             // Get cache stats first (always works)
-            const cacheStats = client.getCacheStats();
+            const cacheStats = await client.getCacheStats();
             result.cache_entries = cacheStats.size;
             result.cache_hit_rate = cacheStats.metrics.hitRate;
             // Get circuit breaker metrics

@@ -458,8 +458,8 @@ export declare const ComparePerformanceSchema: z.ZodObject<{
     response_format: z.ZodDefault<z.ZodNativeEnum<typeof ResponseFormat>>;
 }, "strict", z.ZodTypeAny, {
     compare_type: "periods" | "salespeople" | "teams";
-    response_format: ResponseFormat;
     metrics: ("avg_deal_size" | "win_rate" | "won_count" | "won_revenue" | "avg_cycle_days")[];
+    response_format: ResponseFormat;
     entity_ids?: number[] | undefined;
     period1_start?: string | undefined;
     period1_end?: string | undefined;
@@ -467,13 +467,13 @@ export declare const ComparePerformanceSchema: z.ZodObject<{
     period2_end?: string | undefined;
 }, {
     compare_type: "periods" | "salespeople" | "teams";
+    metrics?: ("avg_deal_size" | "win_rate" | "won_count" | "won_revenue" | "avg_cycle_days")[] | undefined;
     response_format?: ResponseFormat | undefined;
     entity_ids?: number[] | undefined;
     period1_start?: string | undefined;
     period1_end?: string | undefined;
     period2_start?: string | undefined;
     period2_end?: string | undefined;
-    metrics?: ("avg_deal_size" | "win_rate" | "won_count" | "won_revenue" | "avg_cycle_days")[] | undefined;
 }>;
 export declare const ActivitySearchSchema: z.ZodObject<{
     limit: z.ZodDefault<z.ZodNumber>;
