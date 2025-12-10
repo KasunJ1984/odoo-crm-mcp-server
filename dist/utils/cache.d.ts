@@ -8,10 +8,21 @@ export declare class MemoryCache {
     private cache;
     private hits;
     private misses;
+    private refreshingKeys;
     /**
      * Get cached value if exists and not expired
      */
     get<T>(key: string): T | null;
+    /**
+     * Get cached data with background refresh when stale.
+     * Returns stale data immediately while refreshing in background.
+     *
+     * @param key - Cache key
+     * @param refreshFn - Async function to fetch fresh data
+     * @param ttlMs - Time to live in milliseconds
+     * @param refreshThresholdPercent - Percentage of TTL after which to trigger background refresh (default: 80)
+     */
+    getWithRefresh<T>(key: string, refreshFn: () => Promise<T>, ttlMs: number, refreshThresholdPercent?: number): Promise<T>;
     /**
      * Set value with TTL in milliseconds
      */

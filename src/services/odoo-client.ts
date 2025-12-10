@@ -319,108 +319,79 @@ export class OdooClient {
 
   /**
    * Get CRM stages with caching (30 minute TTL)
-   * Stages rarely change, so caching significantly reduces API calls
+   * Uses stale-while-revalidate: returns stale data while refreshing in background
    */
   async getStagesCached(): Promise<CrmStage[]> {
-    const cacheKey = CACHE_KEYS.stages();
-
-    // Check cache first
-    const cached = cache.get<CrmStage[]>(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    // Fetch from Odoo
-    const stages = await this.searchRead<CrmStage>(
-      'crm.stage',
-      [],
-      ['id', 'name', 'sequence', 'is_won', 'fold'],
-      { order: 'sequence asc', limit: 100 }
+    return cache.getWithRefresh(
+      CACHE_KEYS.stages(),
+      () => this.searchRead<CrmStage>(
+        'crm.stage',
+        [],
+        ['id', 'name', 'sequence', 'is_won', 'fold'],
+        { order: 'sequence asc', limit: 100 }
+      ),
+      CACHE_TTL.STAGES
     );
-
-    // Cache the result
-    cache.set(cacheKey, stages, CACHE_TTL.STAGES);
-
-    return stages;
   }
 
   /**
    * Get lost reasons with caching (30 minute TTL)
-   * Lost reasons rarely change, so caching significantly reduces API calls
+   * Uses stale-while-revalidate: returns stale data while refreshing in background
    */
   async getLostReasonsCached(includeInactive: boolean = false): Promise<CrmLostReason[]> {
     const cacheKey = CACHE_KEYS.lostReasons(includeInactive);
-
-    const cached = cache.get<CrmLostReason[]>(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
     const domain = includeInactive ? [] : [['active', '=', true]];
-    const reasons = await this.searchRead<CrmLostReason>(
-      'crm.lost.reason',
-      domain,
-      ['id', 'name', 'active'],
-      { order: 'name asc', limit: 100 }
+
+    return cache.getWithRefresh(
+      cacheKey,
+      () => this.searchRead<CrmLostReason>(
+        'crm.lost.reason',
+        domain,
+        ['id', 'name', 'active'],
+        { order: 'name asc', limit: 100 }
+      ),
+      CACHE_TTL.LOST_REASONS
     );
-
-    cache.set(cacheKey, reasons, CACHE_TTL.LOST_REASONS);
-
-    return reasons;
   }
 
   /**
    * Get sales teams with caching (15 minute TTL)
-   * Teams change occasionally, so shorter cache duration
+   * Uses stale-while-revalidate: returns stale data while refreshing in background
    */
   async getTeamsCached(): Promise<CrmTeam[]> {
-    const cacheKey = CACHE_KEYS.teams();
-
-    const cached = cache.get<CrmTeam[]>(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    const teams = await this.searchRead<CrmTeam>(
-      'crm.team',
-      [['active', '=', true]],
-      ['id', 'name', 'active', 'member_ids'],
-      { order: 'name asc', limit: 100 }
+    return cache.getWithRefresh(
+      CACHE_KEYS.teams(),
+      () => this.searchRead<CrmTeam>(
+        'crm.team',
+        [['active', '=', true]],
+        ['id', 'name', 'active', 'member_ids'],
+        { order: 'name asc', limit: 100 }
+      ),
+      CACHE_TTL.TEAMS
     );
-
-    cache.set(cacheKey, teams, CACHE_TTL.TEAMS);
-
-    return teams;
   }
 
   /**
    * Get salespeople with caching (15 minute TTL)
-   * User list changes occasionally, so shorter cache duration
+   * Uses stale-while-revalidate: returns stale data while refreshing in background
    */
   async getSalespeopleCached(teamId?: number): Promise<ResUsers[]> {
     const cacheKey = CACHE_KEYS.salespeople(teamId);
-
-    const cached = cache.get<ResUsers[]>(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    // Build domain - users who are not shared/portal users
     const domain: unknown[] = [['share', '=', false]];
     if (teamId) {
       domain.push(['sale_team_id', '=', teamId]);
     }
 
-    const users = await this.searchRead<ResUsers>(
-      'res.users',
-      domain,
-      ['id', 'name', 'email', 'login', 'active'],
-      { order: 'name asc', limit: 200 }
+    return cache.getWithRefresh(
+      cacheKey,
+      () => this.searchRead<ResUsers>(
+        'res.users',
+        domain,
+        ['id', 'name', 'email', 'login', 'active'],
+        { order: 'name asc', limit: 200 }
+      ),
+      CACHE_TTL.SALESPEOPLE
     );
-
-    cache.set(cacheKey, users, CACHE_TTL.SALESPEOPLE);
-
-    return users;
   }
 
   /**

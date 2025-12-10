@@ -44,22 +44,22 @@ export declare class OdooClient {
     private searchReadWithTimeout;
     /**
      * Get CRM stages with caching (30 minute TTL)
-     * Stages rarely change, so caching significantly reduces API calls
+     * Uses stale-while-revalidate: returns stale data while refreshing in background
      */
     getStagesCached(): Promise<CrmStage[]>;
     /**
      * Get lost reasons with caching (30 minute TTL)
-     * Lost reasons rarely change, so caching significantly reduces API calls
+     * Uses stale-while-revalidate: returns stale data while refreshing in background
      */
     getLostReasonsCached(includeInactive?: boolean): Promise<CrmLostReason[]>;
     /**
      * Get sales teams with caching (15 minute TTL)
-     * Teams change occasionally, so shorter cache duration
+     * Uses stale-while-revalidate: returns stale data while refreshing in background
      */
     getTeamsCached(): Promise<CrmTeam[]>;
     /**
      * Get salespeople with caching (15 minute TTL)
-     * User list changes occasionally, so shorter cache duration
+     * Uses stale-while-revalidate: returns stale data while refreshing in background
      */
     getSalespeopleCached(teamId?: number): Promise<ResUsers[]>;
     /**

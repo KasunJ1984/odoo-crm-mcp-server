@@ -195,68 +195,38 @@ export class OdooClient {
     // ============================================================================
     /**
      * Get CRM stages with caching (30 minute TTL)
-     * Stages rarely change, so caching significantly reduces API calls
+     * Uses stale-while-revalidate: returns stale data while refreshing in background
      */
     async getStagesCached() {
-        const cacheKey = CACHE_KEYS.stages();
-        // Check cache first
-        const cached = cache.get(cacheKey);
-        if (cached) {
-            return cached;
-        }
-        // Fetch from Odoo
-        const stages = await this.searchRead('crm.stage', [], ['id', 'name', 'sequence', 'is_won', 'fold'], { order: 'sequence asc', limit: 100 });
-        // Cache the result
-        cache.set(cacheKey, stages, CACHE_TTL.STAGES);
-        return stages;
+        return cache.getWithRefresh(CACHE_KEYS.stages(), () => this.searchRead('crm.stage', [], ['id', 'name', 'sequence', 'is_won', 'fold'], { order: 'sequence asc', limit: 100 }), CACHE_TTL.STAGES);
     }
     /**
      * Get lost reasons with caching (30 minute TTL)
-     * Lost reasons rarely change, so caching significantly reduces API calls
+     * Uses stale-while-revalidate: returns stale data while refreshing in background
      */
     async getLostReasonsCached(includeInactive = false) {
         const cacheKey = CACHE_KEYS.lostReasons(includeInactive);
-        const cached = cache.get(cacheKey);
-        if (cached) {
-            return cached;
-        }
         const domain = includeInactive ? [] : [['active', '=', true]];
-        const reasons = await this.searchRead('crm.lost.reason', domain, ['id', 'name', 'active'], { order: 'name asc', limit: 100 });
-        cache.set(cacheKey, reasons, CACHE_TTL.LOST_REASONS);
-        return reasons;
+        return cache.getWithRefresh(cacheKey, () => this.searchRead('crm.lost.reason', domain, ['id', 'name', 'active'], { order: 'name asc', limit: 100 }), CACHE_TTL.LOST_REASONS);
     }
     /**
      * Get sales teams with caching (15 minute TTL)
-     * Teams change occasionally, so shorter cache duration
+     * Uses stale-while-revalidate: returns stale data while refreshing in background
      */
     async getTeamsCached() {
-        const cacheKey = CACHE_KEYS.teams();
-        const cached = cache.get(cacheKey);
-        if (cached) {
-            return cached;
-        }
-        const teams = await this.searchRead('crm.team', [['active', '=', true]], ['id', 'name', 'active', 'member_ids'], { order: 'name asc', limit: 100 });
-        cache.set(cacheKey, teams, CACHE_TTL.TEAMS);
-        return teams;
+        return cache.getWithRefresh(CACHE_KEYS.teams(), () => this.searchRead('crm.team', [['active', '=', true]], ['id', 'name', 'active', 'member_ids'], { order: 'name asc', limit: 100 }), CACHE_TTL.TEAMS);
     }
     /**
      * Get salespeople with caching (15 minute TTL)
-     * User list changes occasionally, so shorter cache duration
+     * Uses stale-while-revalidate: returns stale data while refreshing in background
      */
     async getSalespeopleCached(teamId) {
         const cacheKey = CACHE_KEYS.salespeople(teamId);
-        const cached = cache.get(cacheKey);
-        if (cached) {
-            return cached;
-        }
-        // Build domain - users who are not shared/portal users
         const domain = [['share', '=', false]];
         if (teamId) {
             domain.push(['sale_team_id', '=', teamId]);
         }
-        const users = await this.searchRead('res.users', domain, ['id', 'name', 'email', 'login', 'active'], { order: 'name asc', limit: 200 });
-        cache.set(cacheKey, users, CACHE_TTL.SALESPEOPLE);
-        return users;
+        return cache.getWithRefresh(cacheKey, () => this.searchRead('res.users', domain, ['id', 'name', 'email', 'login', 'active'], { order: 'name asc', limit: 200 }), CACHE_TTL.SALESPEOPLE);
     }
     /**
      * Invalidate specific cache entries or all cache

@@ -7,13 +7,15 @@
 
 interface CacheEntry<T> {
   data: T;
-  expiresAt: number;
+  createdAt: number;   // When entry was created (for stale-while-revalidate)
+  expiresAt: number;   // When entry fully expires
 }
 
 export class MemoryCache {
   private cache: Map<string, CacheEntry<unknown>> = new Map();
   private hits: number = 0;    // Count successful cache retrievals
   private misses: number = 0;  // Count failed cache retrievals (missing or expired)
+  private refreshingKeys: Set<string> = new Set();  // Track keys being refreshed (prevent duplicates)
 
   /**
    * Get cached value if exists and not expired
@@ -36,12 +38,68 @@ export class MemoryCache {
   }
 
   /**
+   * Get cached data with background refresh when stale.
+   * Returns stale data immediately while refreshing in background.
+   *
+   * @param key - Cache key
+   * @param refreshFn - Async function to fetch fresh data
+   * @param ttlMs - Time to live in milliseconds
+   * @param refreshThresholdPercent - Percentage of TTL after which to trigger background refresh (default: 80)
+   */
+  async getWithRefresh<T>(
+    key: string,
+    refreshFn: () => Promise<T>,
+    ttlMs: number,
+    refreshThresholdPercent: number = 80
+  ): Promise<T> {
+    const entry = this.cache.get(key) as CacheEntry<T> | undefined;
+    const now = Date.now();
+
+    if (entry) {
+      const refreshThreshold = entry.createdAt + (ttlMs * refreshThresholdPercent / 100);
+
+      // Still fresh - return cached data
+      if (now < refreshThreshold) {
+        this.hits++;
+        return entry.data;
+      }
+
+      // Stale but valid - return stale data, trigger background refresh
+      if (now < entry.expiresAt) {
+        this.hits++;
+
+        // Prevent duplicate refreshes for same key
+        if (!this.refreshingKeys.has(key)) {
+          this.refreshingKeys.add(key);
+          refreshFn()
+            .then(freshData => this.set(key, freshData, ttlMs))
+            .catch(err => console.error(`Background refresh failed for ${key}:`, err))
+            .finally(() => this.refreshingKeys.delete(key));
+        }
+
+        return entry.data;
+      }
+
+      // Hard expired - delete stale entry
+      this.cache.delete(key);
+    }
+
+    // Cache miss or hard expired - fetch fresh
+    this.misses++;
+    const freshData = await refreshFn();
+    this.set(key, freshData, ttlMs);
+    return freshData;
+  }
+
+  /**
    * Set value with TTL in milliseconds
    */
   set<T>(key: string, data: T, ttlMs: number): void {
+    const now = Date.now();
     this.cache.set(key, {
       data,
-      expiresAt: Date.now() + ttlMs
+      createdAt: now,
+      expiresAt: now + ttlMs
     });
   }
 

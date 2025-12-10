@@ -95,7 +95,7 @@ async warmCache(): Promise<void> {
 
 Estimated total: ~11 hours | Test after each item
 
-### [ ] 2.1 Stale-While-Revalidate Pattern
+### [x] 2.1 Stale-While-Revalidate Pattern
 **Impact:** Zero-latency cache hits even when refreshing
 **Effort:** ~4 hours
 **File:** `src/utils/cache.ts`
@@ -203,6 +203,7 @@ const cache = new LRUCache({ max: 500, ttl: 1000 * 60 * 30 });
 | 2025-12-10 | 1.2 Health Check Tool | Done | 4d54129 | New odoo_crm_health_check tool with latency, cache stats |
 | 2025-12-10 | 1.3 Retry Logic | Done | 5d29eb5 | executeWithRetry with exponential backoff (1s, 2s, 4s) |
 | 2025-12-10 | 1.4 Cache Warming | Done | f32c83e | warmCache() preloads stages, teams, lost_reasons on startup |
+| 2025-12-10 | 2.1 Stale-While-Revalidate | Done | pending | getWithRefresh() returns stale data while refreshing in background |
 
 ---
 
