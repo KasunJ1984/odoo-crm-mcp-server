@@ -800,7 +800,7 @@ Returns summary statistics including total lost count and revenue, breakdown by 
                 })).sort((a, b) => b.count - a.count);
             }
             if (params.group_by === 'month') {
-                const byMonth = await client.readGroup('crm.lead', domain, ['date_closed:month', 'expected_revenue:sum', 'id:count'], ['date_closed:month']);
+                const byMonth = await client.readGroup('crm.lead', domain, ['expected_revenue:sum', 'id:count'], ['date_closed:month']);
                 analysis.by_month = byMonth.map(m => ({
                     month: m['date_closed:month'] || 'Unknown',
                     count: m.id || 0,
@@ -1396,7 +1396,7 @@ Returns summary statistics including total won count and revenue, breakdown by t
                 })).sort((a, b) => b.count - a.count);
             }
             if (params.group_by === 'month') {
-                const byMonth = await client.readGroup('crm.lead', domain, ['date_closed:month', 'expected_revenue:sum', 'id:count'], ['date_closed:month']);
+                const byMonth = await client.readGroup('crm.lead', domain, ['expected_revenue:sum', 'id:count'], ['date_closed:month']);
                 analysis.by_month = byMonth.map(m => ({
                     month: m['date_closed:month'] || 'Unknown',
                     count: m.id || 0,

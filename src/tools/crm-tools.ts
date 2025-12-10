@@ -1160,7 +1160,7 @@ Returns summary statistics including total lost count and revenue, breakdown by 
           const byMonth = await client.readGroup(
             'crm.lead',
             domain,
-            ['date_closed:month', 'expected_revenue:sum', 'id:count'],
+            ['expected_revenue:sum', 'id:count'],
             ['date_closed:month']
           );
 
@@ -1950,7 +1950,7 @@ Returns summary statistics including total won count and revenue, breakdown by t
           const byMonth = await client.readGroup(
             'crm.lead',
             domain,
-            ['date_closed:month', 'expected_revenue:sum', 'id:count'],
+            ['expected_revenue:sum', 'id:count'],
             ['date_closed:month']
           );
 
