@@ -136,4 +136,21 @@ export const REDIS_CONFIG = {
     // Prefix for all cache keys (to avoid conflicts with other apps)
     KEY_PREFIX: process.env.CACHE_KEY_PREFIX || 'odoo-crm:',
 };
+// Connection pool configuration (for high concurrency - 50+ simultaneous users)
+export const POOL_CONFIG = {
+    // Minimum clients to keep in pool (pre-warmed and ready)
+    MIN: parseInt(process.env.ODOO_POOL_MIN || '2'),
+    // Maximum clients allowed in pool (concurrency limit)
+    MAX: parseInt(process.env.ODOO_POOL_MAX || '10'),
+    // Maximum time to wait for a client from pool (milliseconds)
+    ACQUIRE_TIMEOUT_MS: parseInt(process.env.ODOO_POOL_ACQUIRE_TIMEOUT || '30000'),
+    // Evict idle clients after this time (milliseconds) - 0 = no eviction
+    IDLE_TIMEOUT_MS: parseInt(process.env.ODOO_POOL_IDLE_TIMEOUT || '300000'),
+    // How often to run eviction checks (milliseconds) - 0 = disabled
+    EVICTION_RUN_INTERVAL_MS: parseInt(process.env.ODOO_POOL_EVICTION_INTERVAL || '60000'),
+    // Validate clients before returning from pool (checks circuit breaker)
+    TEST_ON_BORROW: process.env.ODOO_POOL_TEST_ON_BORROW !== 'false',
+    // Use FIFO (queue) for client allocation - ensures fair distribution
+    FIFO: true,
+};
 //# sourceMappingURL=constants.js.map

@@ -45,4 +45,13 @@ export declare const REDIS_CONFIG: {
     readonly REDIS_URL: string;
     readonly KEY_PREFIX: string;
 };
+export declare const POOL_CONFIG: {
+    readonly MIN: number;
+    readonly MAX: number;
+    readonly ACQUIRE_TIMEOUT_MS: number;
+    readonly IDLE_TIMEOUT_MS: number;
+    readonly EVICTION_RUN_INTERVAL_MS: number;
+    readonly TEST_ON_BORROW: boolean;
+    readonly FIFO: true;
+};
 //# sourceMappingURL=constants.d.ts.map

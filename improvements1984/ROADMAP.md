@@ -159,7 +159,7 @@ const cache = new LRUCache({ max: 500, ttl: 1000 * 60 * 30 });
 
 ---
 
-### [ ] 3.2 Connection Pooling
+### [x] 3.2 Connection Pooling
 **When:** High concurrency (50+ simultaneous users)
 **Effort:** ~4 hours
 **Dependencies:** `generic-pool` package
@@ -209,6 +209,7 @@ const cache = new LRUCache({ max: 500, ttl: 1000 * 60 * 30 });
 | 2025-12-10 | 2.2 LRU Eviction | Done | a2a18ba | lru-cache package with max 500 entries, auto-eviction |
 | 2025-12-11 | 2.3 Circuit Breaker | Done | be1fe0a | CircuitBreaker class with CLOSED/OPEN/HALF_OPEN states |
 | 2025-12-11 | 3.1 Redis Cache | Done | 3ed4f0c | Optional Redis cache with ioredis, memory cache as default |
+| 2025-12-11 | 3.2 Connection Pooling | Done | - | generic-pool with shared circuit breaker, useClient() helper |
 
 ---
 

@@ -19,11 +19,19 @@ export class OdooClient {
   private objectClient: Client;
   private circuitBreaker: CircuitBreaker;
 
-  constructor(config: OdooConfig) {
+  /**
+   * Create a new OdooClient instance
+   * @param config - Odoo connection configuration (url, db, username, password)
+   * @param circuitBreaker - Optional external circuit breaker to use.
+   *                         If not provided, creates a new one.
+   *                         Pass a shared breaker when using connection pooling.
+   */
+  constructor(config: OdooConfig, circuitBreaker?: CircuitBreaker) {
     this.config = config;
 
-    // Initialize circuit breaker for graceful degradation
-    this.circuitBreaker = new CircuitBreaker(
+    // Use provided circuit breaker or create a new one
+    // Connection pooling uses a shared breaker for consistent behavior
+    this.circuitBreaker = circuitBreaker || new CircuitBreaker(
       CIRCUIT_BREAKER_CONFIG.FAILURE_THRESHOLD,
       CIRCUIT_BREAKER_CONFIG.RESET_TIMEOUT_MS,
       CIRCUIT_BREAKER_CONFIG.HALF_OPEN_MAX_ATTEMPTS

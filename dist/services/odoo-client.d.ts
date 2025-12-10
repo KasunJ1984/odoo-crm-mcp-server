@@ -1,5 +1,5 @@
 import type { OdooConfig, OdooRecord, ExportProgress, CrmStage, CrmLostReason, CrmTeam, ResUsers } from '../types.js';
-import { CircuitState, CircuitBreakerMetrics } from '../utils/circuit-breaker.js';
+import { CircuitBreaker, CircuitState, CircuitBreakerMetrics } from '../utils/circuit-breaker.js';
 export type ExportProgressCallback = (progress: ExportProgress) => void;
 export declare class OdooClient {
     private config;
@@ -7,7 +7,14 @@ export declare class OdooClient {
     private commonClient;
     private objectClient;
     private circuitBreaker;
-    constructor(config: OdooConfig);
+    /**
+     * Create a new OdooClient instance
+     * @param config - Odoo connection configuration (url, db, username, password)
+     * @param circuitBreaker - Optional external circuit breaker to use.
+     *                         If not provided, creates a new one.
+     *                         Pass a shared breaker when using connection pooling.
+     */
+    constructor(config: OdooConfig, circuitBreaker?: CircuitBreaker);
     authenticate(): Promise<number>;
     private _doAuthenticate;
     private execute;

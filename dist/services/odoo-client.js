@@ -12,10 +12,18 @@ export class OdooClient {
     commonClient;
     objectClient;
     circuitBreaker;
-    constructor(config) {
+    /**
+     * Create a new OdooClient instance
+     * @param config - Odoo connection configuration (url, db, username, password)
+     * @param circuitBreaker - Optional external circuit breaker to use.
+     *                         If not provided, creates a new one.
+     *                         Pass a shared breaker when using connection pooling.
+     */
+    constructor(config, circuitBreaker) {
         this.config = config;
-        // Initialize circuit breaker for graceful degradation
-        this.circuitBreaker = new CircuitBreaker(CIRCUIT_BREAKER_CONFIG.FAILURE_THRESHOLD, CIRCUIT_BREAKER_CONFIG.RESET_TIMEOUT_MS, CIRCUIT_BREAKER_CONFIG.HALF_OPEN_MAX_ATTEMPTS);
+        // Use provided circuit breaker or create a new one
+        // Connection pooling uses a shared breaker for consistent behavior
+        this.circuitBreaker = circuitBreaker || new CircuitBreaker(CIRCUIT_BREAKER_CONFIG.FAILURE_THRESHOLD, CIRCUIT_BREAKER_CONFIG.RESET_TIMEOUT_MS, CIRCUIT_BREAKER_CONFIG.HALF_OPEN_MAX_ATTEMPTS);
         // XML-RPC endpoints
         const commonUrl = new URL('/xmlrpc/2/common', config.url);
         const objectUrl = new URL('/xmlrpc/2/object', config.url);

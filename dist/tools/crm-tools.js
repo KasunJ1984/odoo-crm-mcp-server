@@ -1,4 +1,5 @@
 import { getOdooClient } from '../services/odoo-client.js';
+import { getPoolMetrics } from '../services/odoo-pool.js';
 import { formatLeadList, formatLeadDetail, formatPipelineSummary, formatSalesAnalytics, formatContactList, formatActivitySummary, getRelationName, formatLostReasonsList, formatLostAnalysis, formatLostOpportunitiesList, formatLostTrends, formatDate, formatWonOpportunitiesList, formatWonAnalysis, formatWonTrends, formatSalespeopleList, formatTeamsList, formatPerformanceComparison, formatActivityList, formatExportResult } from '../services/formatters.js';
 import { LeadSearchSchema, LeadDetailSchema, PipelineSummarySchema, SalesAnalyticsSchema, ContactSearchSchema, ActivitySummarySchema, StageListSchema, LostReasonsListSchema, LostAnalysisSchema, LostOpportunitiesSearchSchema, LostTrendsSchema, WonOpportunitiesSearchSchema, WonAnalysisSchema, WonTrendsSchema, SalespeopleListSchema, TeamsListSchema, ComparePerformanceSchema, ActivitySearchSchema, ExportDataSchema, CacheStatusSchema, HealthCheckSchema } from '../schemas/index.js';
 import { CRM_FIELDS, CONTEXT_LIMITS, ResponseFormat, EXPORT_CONFIG } from '../constants.js';
@@ -2372,6 +2373,14 @@ Returns: status (healthy/unhealthy), odoo_connected, latency_ms, cache_entries, 
                 failure_count: 0,
                 seconds_until_retry: null
             },
+            pool: {
+                size: 0,
+                available: 0,
+                borrowed: 0,
+                pending: 0,
+                min: 0,
+                max: 0
+            },
             timestamp: new Date().toISOString()
         };
         try {
@@ -2380,6 +2389,16 @@ Returns: status (healthy/unhealthy), odoo_connected, latency_ms, cache_entries, 
             const cacheStats = await client.getCacheStats();
             result.cache_entries = cacheStats.size;
             result.cache_hit_rate = cacheStats.metrics.hitRate;
+            // Get connection pool metrics
+            const poolMetrics = getPoolMetrics();
+            result.pool = {
+                size: poolMetrics.size,
+                available: poolMetrics.available,
+                borrowed: poolMetrics.borrowed,
+                pending: poolMetrics.pending,
+                min: poolMetrics.min,
+                max: poolMetrics.max
+            };
             // Get circuit breaker metrics
             const cbMetrics = client.getCircuitBreakerMetrics();
             result.circuit_breaker = {
@@ -2442,6 +2461,13 @@ Returns: status (healthy/unhealthy), odoo_connected, latency_ms, cache_entries, 
         output += `\n### Cache Statistics\n`;
         output += `- **Cached Entries:** ${result.cache_entries}\n`;
         output += `- **Hit Rate:** ${result.cache_hit_rate}%\n`;
+        output += `\n### Connection Pool\n`;
+        output += `- **Size:** ${result.pool.size} (min: ${result.pool.min}, max: ${result.pool.max})\n`;
+        output += `- **Available:** ${result.pool.available}\n`;
+        output += `- **In Use:** ${result.pool.borrowed}\n`;
+        if (result.pool.pending > 0) {
+            output += `- **Waiting:** ${result.pool.pending} requests\n`;
+        }
         output += `\n### Circuit Breaker\n`;
         output += `- **State:** ${result.circuit_breaker.state}\n`;
         output += `- **Failure Count:** ${result.circuit_breaker.failure_count}\n`;
