@@ -2,16 +2,20 @@ import xmlrpc from 'xmlrpc';
 const { createClient, createSecureClient } = xmlrpc;
 import { withTimeout, TIMEOUTS, TimeoutError } from '../utils/timeout.js';
 import { executeWithRetry } from '../utils/retry.js';
-import { EXPORT_CONFIG } from '../constants.js';
+import { EXPORT_CONFIG, CIRCUIT_BREAKER_CONFIG } from '../constants.js';
 import { cache, CACHE_TTL, CACHE_KEYS } from '../utils/cache.js';
-// Odoo XML-RPC API client with timeout protection
+import { CircuitBreaker } from '../utils/circuit-breaker.js';
+// Odoo XML-RPC API client with timeout protection and circuit breaker
 export class OdooClient {
     config;
     uid = null;
     commonClient;
     objectClient;
+    circuitBreaker;
     constructor(config) {
         this.config = config;
+        // Initialize circuit breaker for graceful degradation
+        this.circuitBreaker = new CircuitBreaker(CIRCUIT_BREAKER_CONFIG.FAILURE_THRESHOLD, CIRCUIT_BREAKER_CONFIG.RESET_TIMEOUT_MS, CIRCUIT_BREAKER_CONFIG.HALF_OPEN_MAX_ATTEMPTS);
         // XML-RPC endpoints
         const commonUrl = new URL('/xmlrpc/2/common', config.url);
         const objectUrl = new URL('/xmlrpc/2/object', config.url);
@@ -64,18 +68,21 @@ export class OdooClient {
             });
         });
     }
-    // Execute Odoo model method with timeout protection
+    // Execute Odoo model method with timeout protection and circuit breaker
     async execute(model, method, args = [], kwargs = {}) {
         const uid = await this.authenticate();
-        try {
-            return await withTimeout(executeWithRetry(() => this._doExecute(uid, model, method, args, kwargs)), TIMEOUTS.API, `Odoo API call timed out (${model}.${method})`);
-        }
-        catch (error) {
-            if (error instanceof TimeoutError) {
-                console.error('API timeout:', error.message);
+        // Wrap with circuit breaker for graceful degradation
+        return this.circuitBreaker.execute(async () => {
+            try {
+                return await withTimeout(executeWithRetry(() => this._doExecute(uid, model, method, args, kwargs)), TIMEOUTS.API, `Odoo API call timed out (${model}.${method})`);
             }
-            throw error;
-        }
+            catch (error) {
+                if (error instanceof TimeoutError) {
+                    console.error('API timeout:', error.message);
+                }
+                throw error;
+            }
+        });
     }
     _doExecute(uid, model, method, args, kwargs) {
         return new Promise((resolve, reject) => {
@@ -257,6 +264,29 @@ export class OdooClient {
      */
     resetAuthCache() {
         this.uid = null;
+    }
+    // ============================================================================
+    // CIRCUIT BREAKER - For graceful degradation when Odoo is unavailable
+    // ============================================================================
+    /**
+     * Get current circuit breaker state
+     * @returns 'CLOSED' (normal), 'OPEN' (failing fast), or 'HALF_OPEN' (testing)
+     */
+    getCircuitBreakerState() {
+        return this.circuitBreaker.getState();
+    }
+    /**
+     * Get circuit breaker metrics for monitoring
+     */
+    getCircuitBreakerMetrics() {
+        return this.circuitBreaker.getMetrics();
+    }
+    /**
+     * Manually reset circuit breaker to CLOSED state
+     * Use after confirming Odoo is back online
+     */
+    resetCircuitBreaker() {
+        this.circuitBreaker.reset();
     }
     /**
      * Pre-populate cache with frequently accessed data.

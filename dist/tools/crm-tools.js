@@ -2343,15 +2343,16 @@ The server caches frequently accessed, rarely-changing data to improve performan
         title: 'Health Check',
         description: `Check Odoo CRM connectivity and server health.
 
-Verifies that the MCP server can connect to Odoo, measures API latency, and reports cache statistics.
+Verifies that the MCP server can connect to Odoo, measures API latency, and reports cache and circuit breaker statistics.
 
 **When to use:**
 - Debugging connection issues
 - Verifying Odoo is accessible
 - Monitoring server health
 - Checking cache performance
+- Viewing circuit breaker state
 
-Returns: status (healthy/unhealthy), odoo_connected, latency_ms, cache_entries, cache_hit_rate`,
+Returns: status (healthy/unhealthy), odoo_connected, latency_ms, cache_entries, cache_hit_rate, circuit_breaker_state`,
         inputSchema: HealthCheckSchema,
         annotations: {
             readOnlyHint: true,
@@ -2366,6 +2367,11 @@ Returns: status (healthy/unhealthy), odoo_connected, latency_ms, cache_entries, 
             latency_ms: null,
             cache_entries: 0,
             cache_hit_rate: 0,
+            circuit_breaker: {
+                state: 'UNKNOWN',
+                failure_count: 0,
+                seconds_until_retry: null
+            },
             timestamp: new Date().toISOString()
         };
         try {
@@ -2374,6 +2380,13 @@ Returns: status (healthy/unhealthy), odoo_connected, latency_ms, cache_entries, 
             const cacheStats = client.getCacheStats();
             result.cache_entries = cacheStats.size;
             result.cache_hit_rate = cacheStats.metrics.hitRate;
+            // Get circuit breaker metrics
+            const cbMetrics = client.getCircuitBreakerMetrics();
+            result.circuit_breaker = {
+                state: cbMetrics.state,
+                failure_count: cbMetrics.failureCount,
+                seconds_until_retry: cbMetrics.secondsUntilHalfOpen
+            };
             // Reset UID to force fresh authentication test
             client.resetAuthCache();
             // Measure authentication latency (5 second timeout)
@@ -2429,6 +2442,18 @@ Returns: status (healthy/unhealthy), odoo_connected, latency_ms, cache_entries, 
         output += `\n### Cache Statistics\n`;
         output += `- **Cached Entries:** ${result.cache_entries}\n`;
         output += `- **Hit Rate:** ${result.cache_hit_rate}%\n`;
+        output += `\n### Circuit Breaker\n`;
+        output += `- **State:** ${result.circuit_breaker.state}\n`;
+        output += `- **Failure Count:** ${result.circuit_breaker.failure_count}\n`;
+        if (result.circuit_breaker.seconds_until_retry !== null) {
+            output += `- **Retry In:** ${result.circuit_breaker.seconds_until_retry} seconds\n`;
+        }
+        if (result.circuit_breaker.state === 'OPEN') {
+            output += `\n*Circuit breaker is OPEN - Odoo requests are being blocked to prevent overload.*\n`;
+        }
+        else if (result.circuit_breaker.state === 'HALF_OPEN') {
+            output += `\n*Circuit breaker is testing if Odoo has recovered...*\n`;
+        }
         if (result.status === 'healthy') {
             if (result.latency_ms !== null && result.latency_ms < 500) {
                 output += `\n*Connection is fast and responsive.*`;

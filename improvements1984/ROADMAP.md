@@ -127,15 +127,16 @@ const cache = new LRUCache({ max: 500, ttl: 1000 * 60 * 30 });
 
 ---
 
-### [ ] 2.3 Circuit Breaker Pattern
+### [x] 2.3 Circuit Breaker Pattern
 **Impact:** Graceful degradation when Odoo is down
 **Effort:** ~4 hours
-**File:** `src/services/odoo-client.ts` or new `src/utils/circuit-breaker.ts`
+**Files:** `src/utils/circuit-breaker.ts` (new), `src/services/odoo-client.ts`, `src/constants.ts`
 
 ```typescript
 // States: CLOSED (normal), OPEN (failing fast), HALF_OPEN (testing)
-// After N failures, open circuit for M seconds
-// Return cached data or error immediately when open
+// After 5 failures, open circuit for 60 seconds
+// Fail fast with CircuitBreakerError when open
+// Health check tool shows circuit breaker state
 ```
 
 **Testing:** Take Odoo offline, verify fast failures and recovery
@@ -205,6 +206,7 @@ const cache = new LRUCache({ max: 500, ttl: 1000 * 60 * 30 });
 | 2025-12-10 | 1.4 Cache Warming | Done | f32c83e | warmCache() preloads stages, teams, lost_reasons on startup |
 | 2025-12-10 | 2.1 Stale-While-Revalidate | Done | 50a99af | getWithRefresh() returns stale data while refreshing in background |
 | 2025-12-10 | 2.2 LRU Eviction | Done | a2a18ba | lru-cache package with max 500 entries, auto-eviction |
+| 2025-12-11 | 2.3 Circuit Breaker | Done | pending | CircuitBreaker class with CLOSED/OPEN/HALF_OPEN states |
 
 ---
 

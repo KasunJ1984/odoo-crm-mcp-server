@@ -1,10 +1,12 @@
 import type { OdooConfig, OdooRecord, ExportProgress, CrmStage, CrmLostReason, CrmTeam, ResUsers } from '../types.js';
+import { CircuitState, CircuitBreakerMetrics } from '../utils/circuit-breaker.js';
 export type ExportProgressCallback = (progress: ExportProgress) => void;
 export declare class OdooClient {
     private config;
     private uid;
     private commonClient;
     private objectClient;
+    private circuitBreaker;
     constructor(config: OdooConfig);
     authenticate(): Promise<number>;
     private _doAuthenticate;
@@ -84,6 +86,20 @@ export declare class OdooClient {
      * Used by health check to verify current connectivity.
      */
     resetAuthCache(): void;
+    /**
+     * Get current circuit breaker state
+     * @returns 'CLOSED' (normal), 'OPEN' (failing fast), or 'HALF_OPEN' (testing)
+     */
+    getCircuitBreakerState(): CircuitState;
+    /**
+     * Get circuit breaker metrics for monitoring
+     */
+    getCircuitBreakerMetrics(): CircuitBreakerMetrics;
+    /**
+     * Manually reset circuit breaker to CLOSED state
+     * Use after confirming Odoo is back online
+     */
+    resetCircuitBreaker(): void;
     /**
      * Pre-populate cache with frequently accessed data.
      * Called on startup to eliminate cold-start latency.

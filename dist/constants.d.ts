@@ -35,4 +35,9 @@ export declare enum ResponseFormat {
     JSON = "json",
     MARKDOWN = "markdown"
 }
+export declare const CIRCUIT_BREAKER_CONFIG: {
+    readonly FAILURE_THRESHOLD: 5;
+    readonly RESET_TIMEOUT_MS: 60000;
+    readonly HALF_OPEN_MAX_ATTEMPTS: 1;
+};
 //# sourceMappingURL=constants.d.ts.map

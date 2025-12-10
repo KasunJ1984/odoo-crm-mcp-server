@@ -142,3 +142,15 @@ export enum ResponseFormat {
   JSON = 'json',
   MARKDOWN = 'markdown'
 }
+
+// Circuit breaker configuration for graceful degradation
+export const CIRCUIT_BREAKER_CONFIG = {
+  // Number of consecutive failures before circuit opens (stops trying)
+  FAILURE_THRESHOLD: 5,
+
+  // Time to wait before testing if Odoo is back (milliseconds)
+  RESET_TIMEOUT_MS: 60000,  // 60 seconds
+
+  // Number of test requests allowed in HALF_OPEN state
+  HALF_OPEN_MAX_ATTEMPTS: 1,
+} as const;
