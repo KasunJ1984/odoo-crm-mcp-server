@@ -1,5 +1,5 @@
 import { CONTEXT_LIMITS, ResponseFormat } from '../constants.js';
-import type { CrmLead, PaginatedResponse, PipelineSummary, SalesAnalytics, ActivitySummary, ResPartner, LostReasonWithCount, LostAnalysisSummary, LostOpportunity, LostTrendsSummary, WonOpportunity, WonAnalysisSummary, WonTrendsSummary, SalespersonWithStats, SalesTeamWithStats, PerformanceComparison, ActivityDetail, ExportResult, PipelineSummaryWithWeighted } from '../types.js';
+import type { CrmLead, PaginatedResponse, PipelineSummary, SalesAnalytics, ActivitySummary, ResPartner, LostReasonWithCount, LostAnalysisSummary, LostOpportunity, LostTrendsSummary, WonOpportunity, WonAnalysisSummary, WonTrendsSummary, SalespersonWithStats, SalesTeamWithStats, PerformanceComparison, ActivityDetail, ExportResult, PipelineSummaryWithWeighted, StateWithStats, StateComparison } from '../types.js';
 import { stripHtml, getContactName } from '../utils/html-utils.js';
 import { formatLinkedName } from '../utils/odoo-urls.js';
 
@@ -47,10 +47,14 @@ export function truncateText(text: string, maxLength: number = 200): string {
 
 // Format lead for list view (minimal fields)
 export function formatLeadListItem(lead: CrmLead): string {
+  // Build location string from city and state
+  const location = [lead.city, getRelationName(lead.state_id)].filter(x => x && x !== '-').join(', ');
+
   return `- **${formatLinkedName(lead.id, lead.name, 'crm.lead')}** (ID: ${lead.id})
   Contact: ${getContactName(lead)} | ${lead.email_from || '-'}
   Stage: ${getRelationName(lead.stage_id)} | Revenue: ${formatCurrency(lead.expected_revenue)} | Prob: ${formatPercent(lead.probability)}
-  Sector: ${lead.sector || '-'} | Lead Source: ${getRelationName(lead.lead_source_id)} | Spec: ${getRelationName(lead.specification_id)}`;
+  Sector: ${lead.sector || '-'} | Lead Source: ${getRelationName(lead.lead_source_id)} | Spec: ${getRelationName(lead.specification_id)}
+  Location: ${location || '-'}`;
 }
 
 // Format lead detail view
@@ -62,7 +66,7 @@ export function formatLeadDetail(lead: CrmLead): string {
 - **Contact:** ${getContactName(lead)}
 - **Email:** ${lead.email_from || '-'}
 - **Phone:** ${lead.phone || '-'} | **Mobile:** ${lead.mobile || '-'}
-- **Address:** ${[lead.street, lead.city, getRelationName(lead.country_id)].filter(Boolean).join(', ') || '-'}
+- **Address:** ${[lead.street, lead.city, getRelationName(lead.state_id), getRelationName(lead.country_id)].filter(x => x && x !== '-').join(', ') || '-'}
 
 ### Opportunity Details
 - **Stage:** ${getRelationName(lead.stage_id)}
@@ -237,7 +241,7 @@ export function formatContactList(data: PaginatedResponse<ResPartner>, format: R
     for (const contact of data.items) {
       output += `- **${formatLinkedName(contact.id, contact.name, 'res.partner')}** (ID: ${contact.id})${contact.is_company ? ' 🏢' : ''}\n`;
       output += `  ${contact.email || '-'} | ${contact.phone || contact.mobile || '-'}\n`;
-      output += `  ${[contact.city, getRelationName(contact.country_id)].filter(x => x && x !== '-').join(', ') || '-'}\n\n`;
+      output += `  ${[contact.city, getRelationName(contact.state_id), getRelationName(contact.country_id)].filter(x => x && x !== '-').join(', ') || '-'}\n\n`;
     }
   }
   
@@ -389,6 +393,26 @@ export function formatLostAnalysis(analysis: LostAnalysisSummary, groupBy: strin
     output += '\n';
   }
 
+  if (groupBy === 'state' && analysis.by_state && analysis.by_state.length > 0) {
+    output += `### By State/Territory\n`;
+    output += '| State | Count | % of Total | Lost Revenue | Avg Deal |\n';
+    output += '|-------|-------|------------|--------------|----------|\n';
+    for (const item of analysis.by_state) {
+      output += `| ${item.state_name} | ${item.count.toLocaleString()} | ${formatPercent(item.percentage)} | ${formatCurrency(item.lost_revenue)} | ${formatCurrency(item.avg_deal)} |\n`;
+    }
+    output += '\n';
+  }
+
+  if (groupBy === 'city' && analysis.by_city && analysis.by_city.length > 0) {
+    output += `### By City\n`;
+    output += '| City | Count | % of Total | Lost Revenue | Avg Deal |\n';
+    output += '|------|-------|------------|--------------|----------|\n';
+    for (const item of analysis.by_city) {
+      output += `| ${item.city} | ${item.count.toLocaleString()} | ${formatPercent(item.percentage)} | ${formatCurrency(item.lost_revenue)} | ${formatCurrency(item.avg_deal)} |\n`;
+    }
+    output += '\n';
+  }
+
   // Top lost opportunities
   if (analysis.top_lost && analysis.top_lost.length > 0) {
     output += `### Top ${analysis.top_lost.length} Largest Lost Opportunities\n`;
@@ -420,6 +444,10 @@ export function formatLostOpportunitiesList(data: PaginatedResponse<LostOpportun
       output += `   - Revenue: ${formatCurrency(opp.expected_revenue)} | Stage: ${getRelationName(opp.stage_id)}\n`;
       output += `   - Salesperson: ${getRelationName(opp.user_id)} | Lost: ${formatDate(opp.date_closed)}\n`;
       output += `   - Sector: ${opp.sector || '-'} | Lead Source: ${getRelationName(opp.lead_source_id)} | Spec: ${getRelationName(opp.specification_id)}\n`;
+      const location = [opp.city, getRelationName(opp.state_id)].filter(x => x && x !== '-').join(', ');
+      if (location) {
+        output += `   - Location: ${location}\n`;
+      }
       if (opp.description) {
         output += `   - Notes: ${truncateText(stripHtml(opp.description), 100)}\n`;
       }
@@ -506,7 +534,12 @@ export function formatWonOpportunitiesList(data: PaginatedResponse<WonOpportunit
       output += `   - Contact: ${getContactName(opp)} | ${opp.email_from || '-'}\n`;
       output += `   - Revenue: ${formatCurrency(opp.expected_revenue)} | Stage: ${getRelationName(opp.stage_id)}\n`;
       output += `   - Salesperson: ${getRelationName(opp.user_id)} | Won: ${formatDate(opp.date_closed)}\n`;
-      output += `   - Sector: ${opp.sector || '-'} | Lead Source: ${getRelationName(opp.lead_source_id)} | Spec: ${getRelationName(opp.specification_id)}\n\n`;
+      output += `   - Sector: ${opp.sector || '-'} | Lead Source: ${getRelationName(opp.lead_source_id)} | Spec: ${getRelationName(opp.specification_id)}\n`;
+      const location = [opp.city, getRelationName(opp.state_id)].filter(x => x && x !== '-').join(', ');
+      if (location) {
+        output += `   - Location: ${location}\n`;
+      }
+      output += '\n';
     }
   }
 
@@ -615,6 +648,26 @@ export function formatWonAnalysis(analysis: WonAnalysisSummary, groupBy: string,
     output += '|-------------|-------|------------|-------------|----------|\n';
     for (const item of analysis.by_lead_source) {
       output += `| ${item.lead_source_name} | ${item.count.toLocaleString()} | ${formatPercent(item.percentage)} | ${formatCurrency(item.won_revenue)} | ${formatCurrency(item.avg_deal)} |\n`;
+    }
+    output += '\n';
+  }
+
+  if (groupBy === 'state' && analysis.by_state && analysis.by_state.length > 0) {
+    output += `### By State/Territory\n`;
+    output += '| State | Count | % of Total | Won Revenue | Avg Deal |\n';
+    output += '|-------|-------|------------|-------------|----------|\n';
+    for (const item of analysis.by_state) {
+      output += `| ${item.state_name} | ${item.count.toLocaleString()} | ${formatPercent(item.percentage)} | ${formatCurrency(item.won_revenue)} | ${formatCurrency(item.avg_deal)} |\n`;
+    }
+    output += '\n';
+  }
+
+  if (groupBy === 'city' && analysis.by_city && analysis.by_city.length > 0) {
+    output += `### By City\n`;
+    output += '| City | Count | % of Total | Won Revenue | Avg Deal |\n';
+    output += '|------|-------|------------|-------------|----------|\n';
+    for (const item of analysis.by_city) {
+      output += `| ${item.city} | ${item.count.toLocaleString()} | ${formatPercent(item.percentage)} | ${formatCurrency(item.won_revenue)} | ${formatCurrency(item.avg_deal)} |\n`;
     }
     output += '\n';
   }
@@ -922,8 +975,8 @@ export function formatLeadListItemExtended(lead: CrmLead): string {
   output += `  Stage: ${getRelationName(lead.stage_id)} | Revenue: ${formatCurrency(lead.expected_revenue)} | Prob: ${formatPercent(lead.probability)}\n`;
   output += `  Salesperson: ${getRelationName(lead.user_id)} | Team: ${getRelationName(lead.team_id)}\n`;
 
-  // Address
-  const address = [lead.street, lead.city, getRelationName(lead.country_id)].filter(x => x && x !== '-').join(', ');
+  // Address (now includes state)
+  const address = [lead.street, lead.city, getRelationName(lead.state_id), getRelationName(lead.country_id)].filter(x => x && x !== '-').join(', ');
   if (address) {
     output += `  Location: ${address}\n`;
   }
@@ -950,6 +1003,74 @@ export function formatLeadListItemExtended(lead: CrmLead): string {
   // Description (truncated, HTML stripped)
   if (lead.description) {
     output += `  Notes: ${truncateText(stripHtml(lead.description), 150)}\n`;
+  }
+
+  return output;
+}
+
+// Format states list (for odoo_crm_list_states tool)
+export function formatStatesList(states: StateWithStats[], countryCode: string, format: ResponseFormat): string {
+  if (format === ResponseFormat.JSON) {
+    return JSON.stringify({ states, country_code: countryCode }, null, 2);
+  }
+
+  let output = `## States/Territories (${countryCode})\n\n`;
+
+  if (states.length === 0) {
+    output += '_No states found for this country._\n';
+    return output;
+  }
+
+  // Check if we have stats
+  const hasStats = states.some(s => s.opportunity_count !== undefined);
+
+  if (hasStats) {
+    output += '| ID | State | Code | Opportunities | Won | Lost | Revenue |\n';
+    output += '|----|-------|------|---------------|-----|------|----------|\n';
+    for (const state of states) {
+      output += `| ${state.id} | ${state.name} | ${state.code || '-'} | ${state.opportunity_count?.toLocaleString() || '-'} | ${state.won_count?.toLocaleString() || '-'} | ${state.lost_count?.toLocaleString() || '-'} | ${formatCurrency(state.total_revenue)} |\n`;
+    }
+  } else {
+    output += '| ID | State | Code |\n';
+    output += '|----|-------|------|\n';
+    for (const state of states) {
+      output += `| ${state.id} | ${state.name} | ${state.code || '-'} |\n`;
+    }
+  }
+
+  return output;
+}
+
+// Format state comparison (for odoo_crm_compare_states tool)
+export function formatStateComparison(comparison: StateComparison, format: ResponseFormat): string {
+  if (format === ResponseFormat.JSON) {
+    return JSON.stringify(comparison, null, 2);
+  }
+
+  let output = `## State Performance Comparison\n\n`;
+
+  if (comparison.period) {
+    output += `**Period:** ${comparison.period}\n\n`;
+  }
+
+  if (comparison.states.length === 0) {
+    output += '_No data available for comparison._\n';
+    return output;
+  }
+
+  output += '| State | Won | Lost | Win Rate | Won Revenue | Lost Revenue | Avg Deal |\n';
+  output += '|-------|-----|------|----------|-------------|--------------|----------|\n';
+
+  for (const state of comparison.states) {
+    output += `| ${state.state_name} | ${state.won_count.toLocaleString()} | ${state.lost_count.toLocaleString()} | ${formatPercent(state.win_rate)} | ${formatCurrency(state.won_revenue)} | ${formatCurrency(state.lost_revenue)} | ${formatCurrency(state.avg_deal_size)} |\n`;
+  }
+
+  // Totals
+  if (comparison.totals) {
+    output += '\n### Summary\n';
+    output += `- **Total Won:** ${comparison.totals.total_won.toLocaleString()} (${formatCurrency(comparison.totals.total_won_revenue)})\n`;
+    output += `- **Total Lost:** ${comparison.totals.total_lost.toLocaleString()} (${formatCurrency(comparison.totals.total_lost_revenue)})\n`;
+    output += `- **Overall Win Rate:** ${formatPercent(comparison.totals.overall_win_rate)}\n`;
   }
 
   return output;

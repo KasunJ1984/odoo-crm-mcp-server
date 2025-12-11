@@ -1,93 +1,60 @@
 /**
- * Simple in-memory cache with TTL (Time To Live)
- * - No external dependencies
- * - Automatic expiration
- * - Type-safe
+ * Cache Factory - Exports the active cache provider
+ *
+ * Supports two cache backends:
+ * - Memory (default): Fast, single-instance, uses LRU eviction
+ * - Redis (optional): Shared cache across multiple instances
+ *
+ * Configuration via environment variables:
+ * - CACHE_TYPE: 'memory' (default) or 'redis'
+ * - REDIS_URL: Redis connection URL (default: redis://localhost:6379)
+ * - CACHE_KEY_PREFIX: Prefix for Redis keys (default: odoo-crm:)
+ *
+ * Usage:
+ *   import { cache, CACHE_TTL, CACHE_KEYS } from './utils/cache.js';
+ *   const data = await cache.get<MyType>('key');
  */
-export class MemoryCache {
-    cache = new Map();
-    /**
-     * Get cached value if exists and not expired
-     */
-    get(key) {
-        const entry = this.cache.get(key);
-        if (!entry)
-            return null;
-        if (Date.now() > entry.expiresAt) {
-            this.cache.delete(key);
-            return null;
-        }
-        return entry.data;
-    }
-    /**
-     * Set value with TTL in milliseconds
-     */
-    set(key, data, ttlMs) {
-        this.cache.set(key, {
-            data,
-            expiresAt: Date.now() + ttlMs
-        });
-    }
-    /**
-     * Check if key exists and is not expired
-     */
-    has(key) {
-        return this.get(key) !== null;
-    }
-    /**
-     * Delete specific key
-     */
-    delete(key) {
-        return this.cache.delete(key);
-    }
-    /**
-     * Clear all cache entries
-     */
-    clear() {
-        this.cache.clear();
-    }
-    /**
-     * Clear expired entries (housekeeping)
-     */
-    clearExpired() {
-        const now = Date.now();
-        let cleared = 0;
-        for (const [key, entry] of this.cache.entries()) {
-            if (now > entry.expiresAt) {
-                this.cache.delete(key);
-                cleared++;
-            }
-        }
-        return cleared;
-    }
-    /**
-     * Get cache stats
-     */
-    stats() {
-        // Clean up expired entries first
-        this.clearExpired();
-        return {
-            size: this.cache.size,
-            keys: Array.from(this.cache.keys())
-        };
-    }
-}
+import { MemoryCache, CACHE_TTL, CACHE_KEYS, CACHE_CONFIG } from './cache-memory.js';
+import { REDIS_CONFIG } from '../constants.js';
 // Singleton cache instance
-export const cache = new MemoryCache();
-// Cache TTL constants (in milliseconds)
-export const CACHE_TTL = {
-    STAGES: 30 * 60 * 1000, // 30 minutes - stages rarely change
-    LOST_REASONS: 30 * 60 * 1000, // 30 minutes - lost reasons rarely change
-    TEAMS: 15 * 60 * 1000, // 15 minutes - teams change occasionally
-    SALESPEOPLE: 15 * 60 * 1000, // 15 minutes - salespeople change occasionally
-    FIELD_METADATA: 60 * 60 * 1000 // 1 hour - for future use
-};
-// Cache key generators (prevent typos, ensure consistency)
-export const CACHE_KEYS = {
-    stages: () => 'crm:stages',
-    lostReasons: (includeInactive) => `crm:lost_reasons:${includeInactive}`,
-    teams: () => 'crm:teams',
-    salespeople: (teamId) => teamId ? `crm:salespeople:team:${teamId}` : 'crm:salespeople:all',
-    fieldMetadata: (model) => `fields:${model}`
-};
+let cacheInstance = null;
+/**
+ * Get or create the cache instance based on configuration
+ */
+function createCache() {
+    if (REDIS_CONFIG.CACHE_TYPE === 'redis') {
+        try {
+            // Dynamic import to avoid loading ioredis when not needed
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+            const { RedisCache } = require('./cache-redis.js');
+            console.error('[Cache] Initializing Redis cache...');
+            return new RedisCache();
+        }
+        catch (error) {
+            console.error('[Cache] Failed to initialize Redis cache, falling back to memory:', error instanceof Error ? error.message : error);
+            return new MemoryCache();
+        }
+    }
+    console.error('[Cache] Using memory cache');
+    return new MemoryCache();
+}
+/**
+ * Get the singleton cache instance
+ */
+export function getCache() {
+    if (!cacheInstance) {
+        cacheInstance = createCache();
+    }
+    return cacheInstance;
+}
+/**
+ * Reset the cache instance (useful for testing)
+ */
+export function resetCache() {
+    cacheInstance = null;
+}
+// Export singleton for convenient access
+export const cache = getCache();
+// Re-export TTL constants and key generators for backward compatibility
+export { CACHE_TTL, CACHE_KEYS, CACHE_CONFIG };
 //# sourceMappingURL=cache.js.map

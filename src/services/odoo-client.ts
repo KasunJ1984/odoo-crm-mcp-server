@@ -1,23 +1,41 @@
 import xmlrpc from 'xmlrpc';
 const { createClient, createSecureClient } = xmlrpc;
 type Client = ReturnType<typeof createClient>;
-import type { OdooConfig, OdooRecord, ExportProgress, CrmStage, CrmLostReason, CrmTeam, ResUsers } from '../types.js';
+import type { OdooConfig, OdooRecord, ExportProgress, CrmStage, CrmLostReason, CrmTeam, ResUsers, ResCountryState } from '../types.js';
 import { withTimeout, TIMEOUTS, TimeoutError } from '../utils/timeout.js';
-import { EXPORT_CONFIG } from '../constants.js';
+import { executeWithRetry } from '../utils/retry.js';
+import { EXPORT_CONFIG, CIRCUIT_BREAKER_CONFIG } from '../constants.js';
 import { cache, CACHE_TTL, CACHE_KEYS } from '../utils/cache.js';
+import { CircuitBreaker, CircuitBreakerError, CircuitState, CircuitBreakerMetrics } from '../utils/circuit-breaker.js';
 
 // Progress callback type for export operations
 export type ExportProgressCallback = (progress: ExportProgress) => void;
 
-// Odoo XML-RPC API client with timeout protection
+// Odoo XML-RPC API client with timeout protection and circuit breaker
 export class OdooClient {
   private config: OdooConfig;
   private uid: number | null = null;
   private commonClient: Client;
   private objectClient: Client;
+  private circuitBreaker: CircuitBreaker;
 
-  constructor(config: OdooConfig) {
+  /**
+   * Create a new OdooClient instance
+   * @param config - Odoo connection configuration (url, db, username, password)
+   * @param circuitBreaker - Optional external circuit breaker to use.
+   *                         If not provided, creates a new one.
+   *                         Pass a shared breaker when using connection pooling.
+   */
+  constructor(config: OdooConfig, circuitBreaker?: CircuitBreaker) {
     this.config = config;
+
+    // Use provided circuit breaker or create a new one
+    // Connection pooling uses a shared breaker for consistent behavior
+    this.circuitBreaker = circuitBreaker || new CircuitBreaker(
+      CIRCUIT_BREAKER_CONFIG.FAILURE_THRESHOLD,
+      CIRCUIT_BREAKER_CONFIG.RESET_TIMEOUT_MS,
+      CIRCUIT_BREAKER_CONFIG.HALF_OPEN_MAX_ATTEMPTS
+    );
 
     // XML-RPC endpoints
     const commonUrl = new URL('/xmlrpc/2/common', config.url);
@@ -83,7 +101,7 @@ export class OdooClient {
     });
   }
 
-  // Execute Odoo model method with timeout protection
+  // Execute Odoo model method with timeout protection and circuit breaker
   private async execute<T>(
     model: string,
     method: string,
@@ -92,18 +110,21 @@ export class OdooClient {
   ): Promise<T> {
     const uid = await this.authenticate();
 
-    try {
-      return await withTimeout(
-        this._doExecute<T>(uid, model, method, args, kwargs),
-        TIMEOUTS.API,
-        `Odoo API call timed out (${model}.${method})`
-      );
-    } catch (error) {
-      if (error instanceof TimeoutError) {
-        console.error('API timeout:', error.message);
+    // Wrap with circuit breaker for graceful degradation
+    return this.circuitBreaker.execute(async () => {
+      try {
+        return await withTimeout(
+          executeWithRetry(() => this._doExecute<T>(uid, model, method, args, kwargs)),
+          TIMEOUTS.API,
+          `Odoo API call timed out (${model}.${method})`
+        );
+      } catch (error) {
+        if (error instanceof TimeoutError) {
+          console.error('API timeout:', error.message);
+        }
+        throw error;
       }
-      throw error;
-    }
+    });
   }
 
   private _doExecute<T>(
@@ -299,12 +320,14 @@ export class OdooClient {
     const uid = await this.authenticate();
 
     return withTimeout(
-      this._doExecute<T[]>(uid, model, 'search_read', [domain], {
-        fields,
-        offset: options.offset,
-        limit: options.limit,
-        order: options.order,
-      }),
+      executeWithRetry(() =>
+        this._doExecute<T[]>(uid, model, 'search_read', [domain], {
+          fields,
+          offset: options.offset,
+          limit: options.limit,
+          order: options.order,
+        })
+      ),
       TIMEOUTS.EXPORT_BATCH,
       `Export batch timed out (offset: ${options.offset}, limit: ${options.limit})`
     );
@@ -316,127 +339,195 @@ export class OdooClient {
 
   /**
    * Get CRM stages with caching (30 minute TTL)
-   * Stages rarely change, so caching significantly reduces API calls
+   * Uses stale-while-revalidate: returns stale data while refreshing in background
    */
   async getStagesCached(): Promise<CrmStage[]> {
-    const cacheKey = CACHE_KEYS.stages();
-
-    // Check cache first
-    const cached = cache.get<CrmStage[]>(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    // Fetch from Odoo
-    const stages = await this.searchRead<CrmStage>(
-      'crm.stage',
-      [],
-      ['id', 'name', 'sequence', 'is_won', 'fold'],
-      { order: 'sequence asc', limit: 100 }
+    return cache.getWithRefresh(
+      CACHE_KEYS.stages(),
+      () => this.searchRead<CrmStage>(
+        'crm.stage',
+        [],
+        ['id', 'name', 'sequence', 'is_won', 'fold'],
+        { order: 'sequence asc', limit: 100 }
+      ),
+      CACHE_TTL.STAGES
     );
-
-    // Cache the result
-    cache.set(cacheKey, stages, CACHE_TTL.STAGES);
-
-    return stages;
   }
 
   /**
    * Get lost reasons with caching (30 minute TTL)
-   * Lost reasons rarely change, so caching significantly reduces API calls
+   * Uses stale-while-revalidate: returns stale data while refreshing in background
    */
   async getLostReasonsCached(includeInactive: boolean = false): Promise<CrmLostReason[]> {
     const cacheKey = CACHE_KEYS.lostReasons(includeInactive);
-
-    const cached = cache.get<CrmLostReason[]>(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
     const domain = includeInactive ? [] : [['active', '=', true]];
-    const reasons = await this.searchRead<CrmLostReason>(
-      'crm.lost.reason',
-      domain,
-      ['id', 'name', 'active'],
-      { order: 'name asc', limit: 100 }
+
+    return cache.getWithRefresh(
+      cacheKey,
+      () => this.searchRead<CrmLostReason>(
+        'crm.lost.reason',
+        domain,
+        ['id', 'name', 'active'],
+        { order: 'name asc', limit: 100 }
+      ),
+      CACHE_TTL.LOST_REASONS
     );
-
-    cache.set(cacheKey, reasons, CACHE_TTL.LOST_REASONS);
-
-    return reasons;
   }
 
   /**
    * Get sales teams with caching (15 minute TTL)
-   * Teams change occasionally, so shorter cache duration
+   * Uses stale-while-revalidate: returns stale data while refreshing in background
    */
   async getTeamsCached(): Promise<CrmTeam[]> {
-    const cacheKey = CACHE_KEYS.teams();
-
-    const cached = cache.get<CrmTeam[]>(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    const teams = await this.searchRead<CrmTeam>(
-      'crm.team',
-      [['active', '=', true]],
-      ['id', 'name', 'active', 'member_ids'],
-      { order: 'name asc', limit: 100 }
+    return cache.getWithRefresh(
+      CACHE_KEYS.teams(),
+      () => this.searchRead<CrmTeam>(
+        'crm.team',
+        [['active', '=', true]],
+        ['id', 'name', 'active', 'member_ids'],
+        { order: 'name asc', limit: 100 }
+      ),
+      CACHE_TTL.TEAMS
     );
-
-    cache.set(cacheKey, teams, CACHE_TTL.TEAMS);
-
-    return teams;
   }
 
   /**
    * Get salespeople with caching (15 minute TTL)
-   * User list changes occasionally, so shorter cache duration
+   * Uses stale-while-revalidate: returns stale data while refreshing in background
    */
   async getSalespeopleCached(teamId?: number): Promise<ResUsers[]> {
     const cacheKey = CACHE_KEYS.salespeople(teamId);
-
-    const cached = cache.get<ResUsers[]>(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    // Build domain - users who are not shared/portal users
     const domain: unknown[] = [['share', '=', false]];
     if (teamId) {
       domain.push(['sale_team_id', '=', teamId]);
     }
 
-    const users = await this.searchRead<ResUsers>(
-      'res.users',
-      domain,
-      ['id', 'name', 'email', 'login', 'active'],
-      { order: 'name asc', limit: 200 }
+    return cache.getWithRefresh(
+      cacheKey,
+      () => this.searchRead<ResUsers>(
+        'res.users',
+        domain,
+        ['id', 'name', 'email', 'login', 'active'],
+        { order: 'name asc', limit: 200 }
+      ),
+      CACHE_TTL.SALESPEOPLE
     );
+  }
 
-    cache.set(cacheKey, users, CACHE_TTL.SALESPEOPLE);
+  /**
+   * Get states/territories with caching (1 hour TTL)
+   * Uses stale-while-revalidate: returns stale data while refreshing in background
+   * @param countryCode - Country code to filter states (default: AU for Australia)
+   */
+  async getStatesCached(countryCode: string = 'AU'): Promise<ResCountryState[]> {
+    const cacheKey = CACHE_KEYS.states(countryCode);
 
-    return users;
+    return cache.getWithRefresh(
+      cacheKey,
+      () => this.searchRead<ResCountryState>(
+        'res.country.state',
+        [['country_id.code', '=', countryCode]],
+        ['id', 'name', 'code', 'country_id'],
+        { order: 'name asc', limit: 100 }
+      ),
+      CACHE_TTL.STATES
+    );
   }
 
   /**
    * Invalidate specific cache entries or all cache
    * @param keys - Specific cache keys to invalidate, or undefined to clear all
    */
-  invalidateCache(keys?: string[]): void {
+  async invalidateCache(keys?: string[]): Promise<void> {
     if (keys) {
-      keys.forEach(key => cache.delete(key));
+      await Promise.all(keys.map(key => cache.delete(key)));
     } else {
-      cache.clear();
+      await cache.clear();
     }
   }
 
   /**
    * Get cache statistics for monitoring
    */
-  getCacheStats(): { size: number; keys: string[] } {
-    return cache.stats();
+  async getCacheStats(): Promise<{
+    size: number;
+    keys: string[];
+    metrics: { hits: number; misses: number; hitRate: number }
+  }> {
+    const stats = await cache.stats();
+    const metrics = cache.getMetrics();
+    return {
+      ...stats,
+      metrics
+    };
+  }
+
+  /**
+   * Reset the cached UID to force a fresh authentication test.
+   * Used by health check to verify current connectivity.
+   */
+  resetAuthCache(): void {
+    this.uid = null;
+  }
+
+  // ============================================================================
+  // CIRCUIT BREAKER - For graceful degradation when Odoo is unavailable
+  // ============================================================================
+
+  /**
+   * Get current circuit breaker state
+   * @returns 'CLOSED' (normal), 'OPEN' (failing fast), or 'HALF_OPEN' (testing)
+   */
+  getCircuitBreakerState(): CircuitState {
+    return this.circuitBreaker.getState();
+  }
+
+  /**
+   * Get circuit breaker metrics for monitoring
+   */
+  getCircuitBreakerMetrics(): CircuitBreakerMetrics {
+    return this.circuitBreaker.getMetrics();
+  }
+
+  /**
+   * Manually reset circuit breaker to CLOSED state
+   * Use after confirming Odoo is back online
+   */
+  resetCircuitBreaker(): void {
+    this.circuitBreaker.reset();
+  }
+
+  /**
+   * Pre-populate cache with frequently accessed data.
+   * Called on startup to eliminate cold-start latency.
+   */
+  async warmCache(): Promise<{ success: string[]; failed: string[] }> {
+    const startTime = Date.now();
+    const success: string[] = [];
+    const failed: string[] = [];
+
+    const results = await Promise.allSettled([
+      this.getStagesCached(),
+      this.getTeamsCached(),
+      this.getLostReasonsCached(false),
+      this.getStatesCached('AU')
+    ]);
+
+    const names = ['stages', 'teams', 'lost_reasons', 'states'];
+    results.forEach((result, i) => {
+      if (result.status === 'fulfilled') {
+        success.push(`${names[i]}(${result.value.length})`);
+      } else {
+        failed.push(names[i]);
+      }
+    });
+
+    const elapsed = Date.now() - startTime;
+    console.error(`Cache warmup: ${success.length}/4 loaded in ${elapsed}ms`);
+    if (success.length > 0) console.error(`  Loaded: ${success.join(', ')}`);
+    if (failed.length > 0) console.error(`  Failed: ${failed.join(', ')}`);
+
+    return { success, failed };
   }
 }
 
@@ -468,4 +559,14 @@ export function getOdooClient(): OdooClient {
 // Reset client (useful for testing or reconnection)
 export function resetOdooClient(): void {
   clientInstance = null;
+}
+
+// Warm cache on startup (non-blocking, graceful failure handling)
+export async function warmCache(): Promise<void> {
+  try {
+    const client = getOdooClient();
+    await client.warmCache();
+  } catch (error) {
+    console.error('Cache warmup failed:', error instanceof Error ? error.message : error);
+  }
 }

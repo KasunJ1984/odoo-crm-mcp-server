@@ -4,6 +4,8 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import express from 'express';
 import { registerCrmTools } from './tools/crm-tools.js';
+import { warmCache } from './services/odoo-client.js';
+import { warmPool } from './services/odoo-pool.js';
 
 // Create MCP server instance
 const server = new McpServer({
@@ -21,6 +23,11 @@ async function runStdio(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error('Odoo CRM MCP Server running on stdio');
+
+  // Warm cache and connection pool asynchronously (non-blocking)
+  Promise.all([warmCache(), warmPool()])
+    .then(() => console.error('Cache and pool warmed successfully'))
+    .catch(err => console.error('Warm-up error:', err instanceof Error ? err.message : err));
 }
 
 // ============================================
@@ -74,6 +81,11 @@ async function runHTTP(): Promise<void> {
     console.error(`Odoo CRM MCP Server running on http://${host}:${port}/mcp`);
     console.error('Environment variables required:');
     console.error('  ODOO_URL, ODOO_DB, ODOO_USERNAME, ODOO_PASSWORD');
+
+    // Warm cache and connection pool asynchronously (non-blocking)
+    Promise.all([warmCache(), warmPool()])
+      .then(() => console.error('Cache and pool warmed successfully'))
+      .catch(err => console.error('Warm-up error:', err instanceof Error ? err.message : err));
   });
 }
 

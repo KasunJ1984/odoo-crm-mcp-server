@@ -94,6 +94,19 @@ export const LeadSearchSchema = PaginationSchema.extend({
     .positive()
     .optional()
     .describe('Filter by specification ID'),
+  state_id: z.number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Filter by Australian state/territory ID'),
+  state_name: z.string()
+    .max(100)
+    .optional()
+    .describe("Filter by state name (partial match). Examples: 'Victoria', 'NSW', 'Queensland'"),
+  city: z.string()
+    .max(100)
+    .optional()
+    .describe("Filter by city name (partial match). Examples: 'Melbourne', 'Sydney'"),
   order_by: z.enum(['create_date', 'expected_revenue', 'probability', 'name', 'date_closed'])
     .default('create_date')
     .describe('Field to sort by'),
@@ -183,6 +196,15 @@ export const ContactSearchSchema = PaginationSchema.extend({
   country: z.string()
     .optional()
     .describe('Filter by country name (partial match)'),
+  state_id: z.number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Filter by Australian state/territory ID'),
+  state_name: z.string()
+    .max(100)
+    .optional()
+    .describe("Filter by state name (partial match). Examples: 'Victoria', 'NSW', 'Queensland'"),
   city: z.string()
     .optional()
     .describe('Filter by city name (partial match)')
@@ -260,9 +282,9 @@ export const LostAnalysisSchema = z.object({
     .min(0)
     .optional()
     .describe('Minimum revenue threshold'),
-  group_by: z.enum(['reason', 'salesperson', 'team', 'stage', 'month', 'sector', 'specification', 'lead_source'])
+  group_by: z.enum(['reason', 'salesperson', 'team', 'stage', 'month', 'sector', 'specification', 'lead_source', 'state', 'city'])
     .default('reason')
-    .describe("Group results by: 'reason', 'salesperson', 'team', 'stage', 'month', 'sector', 'specification', or 'lead_source'"),
+    .describe("Group results by: 'reason', 'salesperson', 'team', 'stage', 'month', 'sector', 'specification', 'lead_source', 'state', or 'city'"),
   include_top_lost: z.number()
     .int()
     .min(0)
@@ -332,6 +354,19 @@ export const LostOpportunitiesSearchSchema = PaginationSchema.extend({
     .positive()
     .optional()
     .describe('Filter by specification ID'),
+  state_id: z.number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Filter by Australian state/territory ID'),
+  state_name: z.string()
+    .max(100)
+    .optional()
+    .describe("Filter by state name (partial match). Examples: 'Victoria', 'NSW', 'Queensland'"),
+  city: z.string()
+    .max(100)
+    .optional()
+    .describe("Filter by city name (partial match). Examples: 'Melbourne', 'Sydney'"),
   order_by: z.enum(['date_closed', 'expected_revenue', 'name', 'create_date'])
     .default('date_closed')
     .describe('Field to sort by'),
@@ -421,6 +456,19 @@ export const WonOpportunitiesSearchSchema = PaginationSchema.extend({
     .positive()
     .optional()
     .describe('Filter by specification ID'),
+  state_id: z.number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Filter by Australian state/territory ID'),
+  state_name: z.string()
+    .max(100)
+    .optional()
+    .describe("Filter by state name (partial match). Examples: 'Victoria', 'NSW', 'Queensland'"),
+  city: z.string()
+    .max(100)
+    .optional()
+    .describe("Filter by city name (partial match). Examples: 'Melbourne', 'Sydney'"),
   order_by: z.enum(['date_closed', 'expected_revenue', 'name', 'create_date'])
     .default('date_closed')
     .describe('Field to sort by'),
@@ -431,9 +479,9 @@ export const WonOpportunitiesSearchSchema = PaginationSchema.extend({
 
 // Won analysis schema
 export const WonAnalysisSchema = z.object({
-  group_by: z.enum(['salesperson', 'team', 'stage', 'month', 'source', 'sector', 'specification', 'lead_source'])
+  group_by: z.enum(['salesperson', 'team', 'stage', 'month', 'source', 'sector', 'specification', 'lead_source', 'state', 'city'])
     .default('salesperson')
-    .describe("Group results by: 'salesperson', 'team', 'stage', 'month', 'source', 'sector', 'specification', or 'lead_source'"),
+    .describe("Group results by: 'salesperson', 'team', 'stage', 'month', 'source', 'sector', 'specification', 'lead_source', 'state', or 'city'"),
   date_from: z.string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional()
@@ -596,7 +644,10 @@ export const ExportDataSchema = z.object({
     date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     min_revenue: z.number().min(0).optional(),
     max_revenue: z.number().min(0).optional(),
-    query: z.string().max(200).optional()
+    query: z.string().max(200).optional(),
+    state_id: z.number().int().positive().optional(),
+    state_name: z.string().max(100).optional(),
+    city: z.string().max(100).optional()
   }).optional()
     .describe('Filters to apply (same as respective search tools)'),
   fields: z.array(z.string())
@@ -618,14 +669,56 @@ export const ExportDataSchema = z.object({
     .describe('Custom filename (without extension). Default: auto-generated with timestamp')
 }).strict();
 
+// States list schema (for geographic analysis)
+export const StatesListSchema = z.object({
+  country_code: z.string()
+    .default('AU')
+    .describe('Country code (default: AU for Australia)'),
+  include_stats: z.boolean()
+    .default(true)
+    .describe('Include opportunity counts and revenue per state'),
+  response_format: z.nativeEnum(ResponseFormat)
+    .default(ResponseFormat.MARKDOWN)
+    .describe("Output format: 'markdown' or 'json'")
+}).strict();
+
+// Compare states schema (for geographic comparison)
+export const CompareStatesSchema = z.object({
+  state_ids: z.array(z.number().int().positive())
+    .max(10)
+    .optional()
+    .describe('Specific state IDs to compare (empty for all states)'),
+  metrics: z.array(z.enum(['won_count', 'lost_count', 'won_revenue', 'lost_revenue', 'win_rate', 'avg_deal_size']))
+    .default(['won_count', 'lost_count', 'win_rate', 'won_revenue'])
+    .describe('Metrics to compare across states'),
+  date_from: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe('Start date filter (YYYY-MM-DD)'),
+  date_to: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe('End date filter (YYYY-MM-DD)'),
+  response_format: z.nativeEnum(ResponseFormat)
+    .default(ResponseFormat.MARKDOWN)
+    .describe("Output format: 'markdown' or 'json'")
+}).strict();
+
 // Cache management schema
 export const CacheStatusSchema = z.object({
   action: z.enum(['status', 'clear'])
     .default('status')
     .describe("Action: 'status' to view cache info, 'clear' to invalidate cached data"),
-  cache_type: z.enum(['all', 'stages', 'lost_reasons', 'teams', 'salespeople'])
+  cache_type: z.enum(['all', 'stages', 'lost_reasons', 'teams', 'salespeople', 'states'])
     .default('all')
     .describe("Which cache to clear (only used with action='clear'). 'all' clears everything.")
+}).strict();
+
+// Health check schema
+export const HealthCheckSchema = z.object({
+  response_format: z.nativeEnum(ResponseFormat)
+    .default(ResponseFormat.MARKDOWN)
+    .describe("Output format: 'markdown' or 'json'")
 }).strict();
 
 // Export inferred types
@@ -648,4 +741,7 @@ export type TeamsListInput = z.infer<typeof TeamsListSchema>;
 export type ComparePerformanceInput = z.infer<typeof ComparePerformanceSchema>;
 export type ActivitySearchInput = z.infer<typeof ActivitySearchSchema>;
 export type ExportDataInput = z.infer<typeof ExportDataSchema>;
+export type StatesListInput = z.infer<typeof StatesListSchema>;
+export type CompareStatesInput = z.infer<typeof CompareStatesSchema>;
 export type CacheStatusInput = z.infer<typeof CacheStatusSchema>;
+export type HealthCheckInput = z.infer<typeof HealthCheckSchema>;

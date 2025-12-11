@@ -36,6 +36,9 @@ export declare const LeadSearchSchema: z.ZodObject<{
     lead_source_id: z.ZodOptional<z.ZodNumber>;
     sector: z.ZodOptional<z.ZodString>;
     specification_id: z.ZodOptional<z.ZodNumber>;
+    state_id: z.ZodOptional<z.ZodNumber>;
+    state_name: z.ZodOptional<z.ZodString>;
+    city: z.ZodOptional<z.ZodString>;
     order_by: z.ZodDefault<z.ZodEnum<["create_date", "expected_revenue", "probability", "name", "date_closed"]>>;
     order_dir: z.ZodDefault<z.ZodEnum<["asc", "desc"]>>;
 }, "strict", z.ZodTypeAny, {
@@ -52,6 +55,8 @@ export declare const LeadSearchSchema: z.ZodObject<{
     lead_source_id?: number | undefined;
     sector?: string | undefined;
     specification_id?: number | undefined;
+    city?: string | undefined;
+    state_id?: number | undefined;
     type?: "lead" | "opportunity" | undefined;
     stage_name?: string | undefined;
     query?: string | undefined;
@@ -62,6 +67,7 @@ export declare const LeadSearchSchema: z.ZodObject<{
     date_to?: string | undefined;
     date_closed_from?: string | undefined;
     date_closed_to?: string | undefined;
+    state_name?: string | undefined;
 }, {
     stage_id?: number | undefined;
     user_id?: number | undefined;
@@ -69,6 +75,8 @@ export declare const LeadSearchSchema: z.ZodObject<{
     lead_source_id?: number | undefined;
     sector?: string | undefined;
     specification_id?: number | undefined;
+    city?: string | undefined;
+    state_id?: number | undefined;
     type?: "lead" | "opportunity" | undefined;
     offset?: number | undefined;
     limit?: number | undefined;
@@ -84,6 +92,7 @@ export declare const LeadSearchSchema: z.ZodObject<{
     date_closed_from?: string | undefined;
     date_closed_to?: string | undefined;
     date_field?: "create_date" | "date_closed" | undefined;
+    state_name?: string | undefined;
     order_by?: "name" | "expected_revenue" | "probability" | "create_date" | "date_closed" | undefined;
     order_dir?: "asc" | "desc" | undefined;
 }>;
@@ -147,23 +156,29 @@ export declare const ContactSearchSchema: z.ZodObject<{
     is_company: z.ZodOptional<z.ZodBoolean>;
     has_opportunities: z.ZodOptional<z.ZodBoolean>;
     country: z.ZodOptional<z.ZodString>;
+    state_id: z.ZodOptional<z.ZodNumber>;
+    state_name: z.ZodOptional<z.ZodString>;
     city: z.ZodOptional<z.ZodString>;
 }, "strict", z.ZodTypeAny, {
     offset: number;
     limit: number;
     response_format: ResponseFormat;
     city?: string | undefined;
+    state_id?: number | undefined;
     is_company?: boolean | undefined;
     query?: string | undefined;
+    state_name?: string | undefined;
     has_opportunities?: boolean | undefined;
     country?: string | undefined;
 }, {
     city?: string | undefined;
+    state_id?: number | undefined;
     is_company?: boolean | undefined;
     offset?: number | undefined;
     limit?: number | undefined;
     response_format?: ResponseFormat | undefined;
     query?: string | undefined;
+    state_name?: string | undefined;
     has_opportunities?: boolean | undefined;
     country?: string | undefined;
 }>;
@@ -208,12 +223,12 @@ export declare const LostAnalysisSchema: z.ZodObject<{
     lost_reason_id: z.ZodOptional<z.ZodNumber>;
     stage_id: z.ZodOptional<z.ZodNumber>;
     min_revenue: z.ZodOptional<z.ZodNumber>;
-    group_by: z.ZodDefault<z.ZodEnum<["reason", "salesperson", "team", "stage", "month", "sector", "specification", "lead_source"]>>;
+    group_by: z.ZodDefault<z.ZodEnum<["reason", "salesperson", "team", "stage", "month", "sector", "specification", "lead_source", "state", "city"]>>;
     include_top_lost: z.ZodDefault<z.ZodNumber>;
     response_format: z.ZodDefault<z.ZodNativeEnum<typeof ResponseFormat>>;
 }, "strict", z.ZodTypeAny, {
     response_format: ResponseFormat;
-    group_by: "sector" | "month" | "reason" | "salesperson" | "team" | "stage" | "specification" | "lead_source";
+    group_by: "sector" | "city" | "state" | "month" | "reason" | "salesperson" | "team" | "stage" | "specification" | "lead_source";
     include_top_lost: number;
     stage_id?: number | undefined;
     user_id?: number | undefined;
@@ -231,7 +246,7 @@ export declare const LostAnalysisSchema: z.ZodObject<{
     min_revenue?: number | undefined;
     date_from?: string | undefined;
     date_to?: string | undefined;
-    group_by?: "sector" | "month" | "reason" | "salesperson" | "team" | "stage" | "specification" | "lead_source" | undefined;
+    group_by?: "sector" | "city" | "state" | "month" | "reason" | "salesperson" | "team" | "stage" | "specification" | "lead_source" | undefined;
     include_top_lost?: number | undefined;
 }>;
 export declare const LostOpportunitiesSearchSchema: z.ZodObject<{
@@ -252,6 +267,9 @@ export declare const LostOpportunitiesSearchSchema: z.ZodObject<{
     lead_source_id: z.ZodOptional<z.ZodNumber>;
     sector: z.ZodOptional<z.ZodString>;
     specification_id: z.ZodOptional<z.ZodNumber>;
+    state_id: z.ZodOptional<z.ZodNumber>;
+    state_name: z.ZodOptional<z.ZodString>;
+    city: z.ZodOptional<z.ZodString>;
     order_by: z.ZodDefault<z.ZodEnum<["date_closed", "expected_revenue", "name", "create_date"]>>;
     order_dir: z.ZodDefault<z.ZodEnum<["asc", "desc"]>>;
 }, "strict", z.ZodTypeAny, {
@@ -266,12 +284,15 @@ export declare const LostOpportunitiesSearchSchema: z.ZodObject<{
     lead_source_id?: number | undefined;
     sector?: string | undefined;
     specification_id?: number | undefined;
+    city?: string | undefined;
+    state_id?: number | undefined;
     lost_reason_id?: number | undefined;
     query?: string | undefined;
     min_revenue?: number | undefined;
     max_revenue?: number | undefined;
     date_from?: string | undefined;
     date_to?: string | undefined;
+    state_name?: string | undefined;
     lost_reason_name?: string | undefined;
 }, {
     stage_id?: number | undefined;
@@ -280,6 +301,8 @@ export declare const LostOpportunitiesSearchSchema: z.ZodObject<{
     lead_source_id?: number | undefined;
     sector?: string | undefined;
     specification_id?: number | undefined;
+    city?: string | undefined;
+    state_id?: number | undefined;
     lost_reason_id?: number | undefined;
     offset?: number | undefined;
     limit?: number | undefined;
@@ -289,6 +312,7 @@ export declare const LostOpportunitiesSearchSchema: z.ZodObject<{
     max_revenue?: number | undefined;
     date_from?: string | undefined;
     date_to?: string | undefined;
+    state_name?: string | undefined;
     order_by?: "name" | "expected_revenue" | "create_date" | "date_closed" | undefined;
     order_dir?: "asc" | "desc" | undefined;
     lost_reason_name?: string | undefined;
@@ -334,6 +358,9 @@ export declare const WonOpportunitiesSearchSchema: z.ZodObject<{
     lead_source_id: z.ZodOptional<z.ZodNumber>;
     sector: z.ZodOptional<z.ZodString>;
     specification_id: z.ZodOptional<z.ZodNumber>;
+    state_id: z.ZodOptional<z.ZodNumber>;
+    state_name: z.ZodOptional<z.ZodString>;
+    city: z.ZodOptional<z.ZodString>;
     order_by: z.ZodDefault<z.ZodEnum<["date_closed", "expected_revenue", "name", "create_date"]>>;
     order_dir: z.ZodDefault<z.ZodEnum<["asc", "desc"]>>;
 }, "strict", z.ZodTypeAny, {
@@ -348,11 +375,14 @@ export declare const WonOpportunitiesSearchSchema: z.ZodObject<{
     lead_source_id?: number | undefined;
     sector?: string | undefined;
     specification_id?: number | undefined;
+    city?: string | undefined;
+    state_id?: number | undefined;
     query?: string | undefined;
     min_revenue?: number | undefined;
     max_revenue?: number | undefined;
     date_from?: string | undefined;
     date_to?: string | undefined;
+    state_name?: string | undefined;
 }, {
     stage_id?: number | undefined;
     user_id?: number | undefined;
@@ -360,6 +390,8 @@ export declare const WonOpportunitiesSearchSchema: z.ZodObject<{
     lead_source_id?: number | undefined;
     sector?: string | undefined;
     specification_id?: number | undefined;
+    city?: string | undefined;
+    state_id?: number | undefined;
     offset?: number | undefined;
     limit?: number | undefined;
     response_format?: ResponseFormat | undefined;
@@ -368,11 +400,12 @@ export declare const WonOpportunitiesSearchSchema: z.ZodObject<{
     max_revenue?: number | undefined;
     date_from?: string | undefined;
     date_to?: string | undefined;
+    state_name?: string | undefined;
     order_by?: "name" | "expected_revenue" | "create_date" | "date_closed" | undefined;
     order_dir?: "asc" | "desc" | undefined;
 }>;
 export declare const WonAnalysisSchema: z.ZodObject<{
-    group_by: z.ZodDefault<z.ZodEnum<["salesperson", "team", "stage", "month", "source", "sector", "specification", "lead_source"]>>;
+    group_by: z.ZodDefault<z.ZodEnum<["salesperson", "team", "stage", "month", "source", "sector", "specification", "lead_source", "state", "city"]>>;
     date_from: z.ZodOptional<z.ZodString>;
     date_to: z.ZodOptional<z.ZodString>;
     user_id: z.ZodOptional<z.ZodNumber>;
@@ -382,7 +415,7 @@ export declare const WonAnalysisSchema: z.ZodObject<{
     response_format: z.ZodDefault<z.ZodNativeEnum<typeof ResponseFormat>>;
 }, "strict", z.ZodTypeAny, {
     response_format: ResponseFormat;
-    group_by: "sector" | "month" | "salesperson" | "team" | "stage" | "specification" | "lead_source" | "source";
+    group_by: "sector" | "city" | "state" | "month" | "salesperson" | "team" | "stage" | "specification" | "lead_source" | "source";
     include_top_won: number;
     user_id?: number | undefined;
     team_id?: number | undefined;
@@ -396,7 +429,7 @@ export declare const WonAnalysisSchema: z.ZodObject<{
     min_revenue?: number | undefined;
     date_from?: string | undefined;
     date_to?: string | undefined;
-    group_by?: "sector" | "month" | "salesperson" | "team" | "stage" | "specification" | "lead_source" | "source" | undefined;
+    group_by?: "sector" | "city" | "state" | "month" | "salesperson" | "team" | "stage" | "specification" | "lead_source" | "source" | undefined;
     include_top_won?: number | undefined;
 }>;
 export declare const WonTrendsSchema: z.ZodObject<{
@@ -458,8 +491,8 @@ export declare const ComparePerformanceSchema: z.ZodObject<{
     response_format: z.ZodDefault<z.ZodNativeEnum<typeof ResponseFormat>>;
 }, "strict", z.ZodTypeAny, {
     compare_type: "periods" | "salespeople" | "teams";
+    metrics: ("avg_deal_size" | "won_count" | "win_rate" | "won_revenue" | "avg_cycle_days")[];
     response_format: ResponseFormat;
-    metrics: ("avg_deal_size" | "win_rate" | "won_count" | "won_revenue" | "avg_cycle_days")[];
     entity_ids?: number[] | undefined;
     period1_start?: string | undefined;
     period1_end?: string | undefined;
@@ -467,13 +500,13 @@ export declare const ComparePerformanceSchema: z.ZodObject<{
     period2_end?: string | undefined;
 }, {
     compare_type: "periods" | "salespeople" | "teams";
+    metrics?: ("avg_deal_size" | "won_count" | "win_rate" | "won_revenue" | "avg_cycle_days")[] | undefined;
     response_format?: ResponseFormat | undefined;
     entity_ids?: number[] | undefined;
     period1_start?: string | undefined;
     period1_end?: string | undefined;
     period2_start?: string | undefined;
     period2_end?: string | undefined;
-    metrics?: ("avg_deal_size" | "win_rate" | "won_count" | "won_revenue" | "avg_cycle_days")[] | undefined;
 }>;
 export declare const ActivitySearchSchema: z.ZodObject<{
     limit: z.ZodDefault<z.ZodNumber>;
@@ -519,24 +552,33 @@ export declare const ExportDataSchema: z.ZodObject<{
         min_revenue: z.ZodOptional<z.ZodNumber>;
         max_revenue: z.ZodOptional<z.ZodNumber>;
         query: z.ZodOptional<z.ZodString>;
+        state_id: z.ZodOptional<z.ZodNumber>;
+        state_name: z.ZodOptional<z.ZodString>;
+        city: z.ZodOptional<z.ZodString>;
     }, "strip", z.ZodTypeAny, {
         stage_id?: number | undefined;
         user_id?: number | undefined;
         team_id?: number | undefined;
+        city?: string | undefined;
+        state_id?: number | undefined;
         query?: string | undefined;
         min_revenue?: number | undefined;
         max_revenue?: number | undefined;
         date_from?: string | undefined;
         date_to?: string | undefined;
+        state_name?: string | undefined;
     }, {
         stage_id?: number | undefined;
         user_id?: number | undefined;
         team_id?: number | undefined;
+        city?: string | undefined;
+        state_id?: number | undefined;
         query?: string | undefined;
         min_revenue?: number | undefined;
         max_revenue?: number | undefined;
         date_from?: string | undefined;
         date_to?: string | undefined;
+        state_name?: string | undefined;
     }>>;
     fields: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
     max_records: z.ZodDefault<z.ZodNumber>;
@@ -552,11 +594,14 @@ export declare const ExportDataSchema: z.ZodObject<{
         stage_id?: number | undefined;
         user_id?: number | undefined;
         team_id?: number | undefined;
+        city?: string | undefined;
+        state_id?: number | undefined;
         query?: string | undefined;
         min_revenue?: number | undefined;
         max_revenue?: number | undefined;
         date_from?: string | undefined;
         date_to?: string | undefined;
+        state_name?: string | undefined;
     } | undefined;
     output_directory?: string | undefined;
 }, {
@@ -568,24 +613,66 @@ export declare const ExportDataSchema: z.ZodObject<{
         stage_id?: number | undefined;
         user_id?: number | undefined;
         team_id?: number | undefined;
+        city?: string | undefined;
+        state_id?: number | undefined;
         query?: string | undefined;
         min_revenue?: number | undefined;
         max_revenue?: number | undefined;
         date_from?: string | undefined;
         date_to?: string | undefined;
+        state_name?: string | undefined;
     } | undefined;
     max_records?: number | undefined;
     output_directory?: string | undefined;
 }>;
+export declare const StatesListSchema: z.ZodObject<{
+    country_code: z.ZodDefault<z.ZodString>;
+    include_stats: z.ZodDefault<z.ZodBoolean>;
+    response_format: z.ZodDefault<z.ZodNativeEnum<typeof ResponseFormat>>;
+}, "strict", z.ZodTypeAny, {
+    response_format: ResponseFormat;
+    include_stats: boolean;
+    country_code: string;
+}, {
+    response_format?: ResponseFormat | undefined;
+    include_stats?: boolean | undefined;
+    country_code?: string | undefined;
+}>;
+export declare const CompareStatesSchema: z.ZodObject<{
+    state_ids: z.ZodOptional<z.ZodArray<z.ZodNumber, "many">>;
+    metrics: z.ZodDefault<z.ZodArray<z.ZodEnum<["won_count", "lost_count", "won_revenue", "lost_revenue", "win_rate", "avg_deal_size"]>, "many">>;
+    date_from: z.ZodOptional<z.ZodString>;
+    date_to: z.ZodOptional<z.ZodString>;
+    response_format: z.ZodDefault<z.ZodNativeEnum<typeof ResponseFormat>>;
+}, "strict", z.ZodTypeAny, {
+    metrics: ("avg_deal_size" | "won_count" | "lost_count" | "win_rate" | "won_revenue" | "lost_revenue")[];
+    response_format: ResponseFormat;
+    date_from?: string | undefined;
+    date_to?: string | undefined;
+    state_ids?: number[] | undefined;
+}, {
+    metrics?: ("avg_deal_size" | "won_count" | "lost_count" | "win_rate" | "won_revenue" | "lost_revenue")[] | undefined;
+    response_format?: ResponseFormat | undefined;
+    date_from?: string | undefined;
+    date_to?: string | undefined;
+    state_ids?: number[] | undefined;
+}>;
 export declare const CacheStatusSchema: z.ZodObject<{
     action: z.ZodDefault<z.ZodEnum<["status", "clear"]>>;
-    cache_type: z.ZodDefault<z.ZodEnum<["all", "stages", "lost_reasons", "teams", "salespeople"]>>;
+    cache_type: z.ZodDefault<z.ZodEnum<["all", "stages", "lost_reasons", "teams", "salespeople", "states"]>>;
 }, "strict", z.ZodTypeAny, {
-    action: "status" | "clear";
-    cache_type: "salespeople" | "teams" | "all" | "stages" | "lost_reasons";
+    action: "clear" | "status";
+    cache_type: "salespeople" | "teams" | "states" | "stages" | "lost_reasons" | "all";
 }, {
-    action?: "status" | "clear" | undefined;
-    cache_type?: "salespeople" | "teams" | "all" | "stages" | "lost_reasons" | undefined;
+    action?: "clear" | "status" | undefined;
+    cache_type?: "salespeople" | "teams" | "states" | "stages" | "lost_reasons" | "all" | undefined;
+}>;
+export declare const HealthCheckSchema: z.ZodObject<{
+    response_format: z.ZodDefault<z.ZodNativeEnum<typeof ResponseFormat>>;
+}, "strict", z.ZodTypeAny, {
+    response_format: ResponseFormat;
+}, {
+    response_format?: ResponseFormat | undefined;
 }>;
 export type LeadSearchInput = z.infer<typeof LeadSearchSchema>;
 export type LeadDetailInput = z.infer<typeof LeadDetailSchema>;
@@ -606,5 +693,8 @@ export type TeamsListInput = z.infer<typeof TeamsListSchema>;
 export type ComparePerformanceInput = z.infer<typeof ComparePerformanceSchema>;
 export type ActivitySearchInput = z.infer<typeof ActivitySearchSchema>;
 export type ExportDataInput = z.infer<typeof ExportDataSchema>;
+export type StatesListInput = z.infer<typeof StatesListSchema>;
+export type CompareStatesInput = z.infer<typeof CompareStatesSchema>;
 export type CacheStatusInput = z.infer<typeof CacheStatusSchema>;
+export type HealthCheckInput = z.infer<typeof HealthCheckSchema>;
 //# sourceMappingURL=index.d.ts.map

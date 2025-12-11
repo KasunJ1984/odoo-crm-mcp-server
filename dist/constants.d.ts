@@ -30,9 +30,29 @@ export declare const CRM_FIELDS: {
     ACTIVITY_DETAIL: string[];
     USER_LIST: string[];
     TEAM_LIST: string[];
+    STATE_LIST: string[];
 };
 export declare enum ResponseFormat {
     JSON = "json",
     MARKDOWN = "markdown"
 }
+export declare const CIRCUIT_BREAKER_CONFIG: {
+    readonly FAILURE_THRESHOLD: 5;
+    readonly RESET_TIMEOUT_MS: 60000;
+    readonly HALF_OPEN_MAX_ATTEMPTS: 1;
+};
+export declare const REDIS_CONFIG: {
+    readonly CACHE_TYPE: "memory" | "redis";
+    readonly REDIS_URL: string;
+    readonly KEY_PREFIX: string;
+};
+export declare const POOL_CONFIG: {
+    readonly MIN: number;
+    readonly MAX: number;
+    readonly ACQUIRE_TIMEOUT_MS: number;
+    readonly IDLE_TIMEOUT_MS: number;
+    readonly EVICTION_RUN_INTERVAL_MS: number;
+    readonly TEST_ON_BORROW: boolean;
+    readonly FIFO: true;
+};
 //# sourceMappingURL=constants.d.ts.map

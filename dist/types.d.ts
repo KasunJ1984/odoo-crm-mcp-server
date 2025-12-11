@@ -36,6 +36,7 @@ export interface CrmLead extends OdooRecord {
     campaign_id?: [number, string];
     tag_ids?: number[];
     city?: string;
+    state_id?: [number, string];
     country_id?: [number, string];
     street?: string;
     lead_source_id?: [number, string];
@@ -56,6 +57,7 @@ export interface ResPartner extends OdooRecord {
     phone?: string;
     mobile?: string;
     city?: string;
+    state_id?: [number, string];
     country_id?: [number, string];
     company_id?: [number, string];
     is_company?: boolean;
@@ -146,6 +148,18 @@ export interface CrmLostReason extends OdooRecord {
     name: string;
     active?: boolean;
 }
+export interface ResCountryState extends OdooRecord {
+    id: number;
+    name: string;
+    code?: string;
+    country_id?: [number, string];
+}
+export interface StateWithStats extends ResCountryState {
+    opportunity_count?: number;
+    won_count?: number;
+    lost_count?: number;
+    total_revenue?: number;
+}
 export interface LostReasonWithCount extends CrmLostReason {
     opportunity_count: number;
 }
@@ -213,6 +227,21 @@ export interface LostAnalysisSummary {
     by_lead_source?: Array<{
         lead_source_id: number;
         lead_source_name: string;
+        count: number;
+        percentage: number;
+        lost_revenue: number;
+        avg_deal: number;
+    }>;
+    by_state?: Array<{
+        state_id: number;
+        state_name: string;
+        count: number;
+        percentage: number;
+        lost_revenue: number;
+        avg_deal: number;
+    }>;
+    by_city?: Array<{
+        city: string;
         count: number;
         percentage: number;
         lost_revenue: number;
@@ -324,6 +353,21 @@ export interface WonAnalysisSummary {
     by_lead_source?: Array<{
         lead_source_id: number;
         lead_source_name: string;
+        count: number;
+        percentage: number;
+        won_revenue: number;
+        avg_deal: number;
+    }>;
+    by_state?: Array<{
+        state_id: number;
+        state_name: string;
+        count: number;
+        percentage: number;
+        won_revenue: number;
+        avg_deal: number;
+    }>;
+    by_city?: Array<{
+        city: string;
         count: number;
         percentage: number;
         won_revenue: number;
@@ -474,5 +518,28 @@ export interface SalesAnalyticsWithWeighted extends SalesAnalytics {
         name: string;
         weighted_revenue: number;
     }>;
+}
+export interface StateComparison {
+    [key: string]: unknown;
+    period?: string;
+    states: Array<{
+        state_id: number;
+        state_name: string;
+        state_code?: string;
+        won_count: number;
+        lost_count: number;
+        won_revenue: number;
+        lost_revenue: number;
+        win_rate: number;
+        avg_deal_size: number;
+        total_opportunities?: number;
+    }>;
+    totals?: {
+        total_won: number;
+        total_lost: number;
+        total_won_revenue: number;
+        total_lost_revenue: number;
+        overall_win_rate: number;
+    };
 }
 //# sourceMappingURL=types.d.ts.map

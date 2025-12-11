@@ -1,10 +1,12 @@
 import { getOdooClient } from '../services/odoo-client.js';
-import { formatLeadList, formatLeadDetail, formatPipelineSummary, formatSalesAnalytics, formatContactList, formatActivitySummary, getRelationName, formatLostReasonsList, formatLostAnalysis, formatLostOpportunitiesList, formatLostTrends, formatDate, formatWonOpportunitiesList, formatWonAnalysis, formatWonTrends, formatSalespeopleList, formatTeamsList, formatPerformanceComparison, formatActivityList, formatExportResult } from '../services/formatters.js';
-import { LeadSearchSchema, LeadDetailSchema, PipelineSummarySchema, SalesAnalyticsSchema, ContactSearchSchema, ActivitySummarySchema, StageListSchema, LostReasonsListSchema, LostAnalysisSchema, LostOpportunitiesSearchSchema, LostTrendsSchema, WonOpportunitiesSearchSchema, WonAnalysisSchema, WonTrendsSchema, SalespeopleListSchema, TeamsListSchema, ComparePerformanceSchema, ActivitySearchSchema, ExportDataSchema, CacheStatusSchema } from '../schemas/index.js';
+import { getPoolMetrics } from '../services/odoo-pool.js';
+import { formatLeadList, formatLeadDetail, formatPipelineSummary, formatSalesAnalytics, formatContactList, formatActivitySummary, getRelationName, formatLostReasonsList, formatLostAnalysis, formatLostOpportunitiesList, formatLostTrends, formatDate, formatWonOpportunitiesList, formatWonAnalysis, formatWonTrends, formatSalespeopleList, formatTeamsList, formatPerformanceComparison, formatActivityList, formatExportResult, formatStatesList, formatStateComparison } from '../services/formatters.js';
+import { LeadSearchSchema, LeadDetailSchema, PipelineSummarySchema, SalesAnalyticsSchema, ContactSearchSchema, ActivitySummarySchema, StageListSchema, LostReasonsListSchema, LostAnalysisSchema, LostOpportunitiesSearchSchema, LostTrendsSchema, WonOpportunitiesSearchSchema, WonAnalysisSchema, WonTrendsSchema, SalespeopleListSchema, TeamsListSchema, ComparePerformanceSchema, ActivitySearchSchema, ExportDataSchema, StatesListSchema, CompareStatesSchema, CacheStatusSchema, HealthCheckSchema } from '../schemas/index.js';
 import { CRM_FIELDS, CONTEXT_LIMITS, ResponseFormat, EXPORT_CONFIG } from '../constants.js';
 import { ExportWriter, generateExportFilename, getOutputDirectory, getMimeType } from '../utils/export-writer.js';
 import { convertDateToUtc, getDaysAgoUtc } from '../utils/timezone.js';
 import { cache, CACHE_KEYS } from '../utils/cache.js';
+import { withTimeout, TIMEOUTS, TimeoutError } from '../utils/timeout.js';
 // Register all CRM tools
 export function registerCrmTools(server) {
     // ============================================
@@ -95,6 +97,17 @@ Returns paginated list with: name, contact, email, stage, revenue, probability`,
             }
             if (params.specification_id) {
                 domain.push(['specification_id', '=', params.specification_id]);
+            }
+            // State/Territory filters (direct field on crm.lead)
+            if (params.state_id) {
+                domain.push(['state_id', '=', params.state_id]);
+            }
+            if (params.state_name) {
+                domain.push(['state_id.name', 'ilike', params.state_name]);
+            }
+            // City filter
+            if (params.city) {
+                domain.push(['city', 'ilike', params.city]);
             }
             // Get total count
             const total = await client.searchCount('crm.lead', domain);
@@ -408,6 +421,13 @@ Returns: name, email, phone, city, country`,
             }
             if (params.city) {
                 domain.push(['city', 'ilike', params.city]);
+            }
+            // State/Territory filters
+            if (params.state_id) {
+                domain.push(['state_id', '=', params.state_id]);
+            }
+            if (params.state_name) {
+                domain.push(['state_id.name', 'ilike', params.state_name]);
             }
             if (params.has_opportunities) {
                 // Get partner IDs with opportunities
@@ -799,7 +819,7 @@ Returns summary statistics including total lost count and revenue, breakdown by 
                 })).sort((a, b) => b.count - a.count);
             }
             if (params.group_by === 'month') {
-                const byMonth = await client.readGroup('crm.lead', domain, ['date_closed:month', 'expected_revenue:sum', 'id:count'], ['date_closed:month']);
+                const byMonth = await client.readGroup('crm.lead', domain, ['expected_revenue:sum', 'id:count'], ['date_closed:month']);
                 analysis.by_month = byMonth.map(m => ({
                     month: m['date_closed:month'] || 'Unknown',
                     count: m.id || 0,
@@ -836,6 +856,27 @@ Returns summary statistics including total lost count and revenue, breakdown by 
                     percentage: totalLost > 0 ? (s.id / totalLost) * 100 : 0,
                     lost_revenue: s.expected_revenue || 0,
                     avg_deal: s.id > 0 ? (s.expected_revenue || 0) / s.id : 0
+                })).sort((a, b) => b.count - a.count);
+            }
+            if (params.group_by === 'state') {
+                const byState = await client.readGroup('crm.lead', domain, ['state_id', 'expected_revenue:sum', 'id:count'], ['state_id']);
+                analysis.by_state = byState.map(s => ({
+                    state_id: Array.isArray(s.state_id) ? s.state_id[0] : 0,
+                    state_name: Array.isArray(s.state_id) ? s.state_id[1] : 'Not Specified',
+                    count: s.id || 0,
+                    percentage: totalLost > 0 ? (s.id / totalLost) * 100 : 0,
+                    lost_revenue: s.expected_revenue || 0,
+                    avg_deal: s.id > 0 ? (s.expected_revenue || 0) / s.id : 0
+                })).sort((a, b) => b.count - a.count);
+            }
+            if (params.group_by === 'city') {
+                const byCity = await client.readGroup('crm.lead', domain, ['city', 'expected_revenue:sum', 'id:count'], ['city']);
+                analysis.by_city = byCity.map(c => ({
+                    city: c.city || 'Not Specified',
+                    count: c.id || 0,
+                    percentage: totalLost > 0 ? (c.id / totalLost) * 100 : 0,
+                    lost_revenue: c.expected_revenue || 0,
+                    avg_deal: c.id > 0 ? (c.expected_revenue || 0) / c.id : 0
                 })).sort((a, b) => b.count - a.count);
             }
             // Get top lost opportunities
@@ -941,6 +982,17 @@ Returns a paginated list of lost opportunities with details including the lost r
             }
             if (params.specification_id) {
                 domain.push(['specification_id', '=', params.specification_id]);
+            }
+            // State/Territory filters (direct field on crm.lead)
+            if (params.state_id) {
+                domain.push(['state_id', '=', params.state_id]);
+            }
+            if (params.state_name) {
+                domain.push(['state_id.name', 'ilike', params.state_name]);
+            }
+            // City filter
+            if (params.city) {
+                domain.push(['city', 'ilike', params.city]);
             }
             // Get total count
             const total = await client.searchCount('crm.lead', domain);
@@ -1252,6 +1304,17 @@ Returns a paginated list of won opportunities with details including revenue, sa
             if (params.specification_id) {
                 domain.push(['specification_id', '=', params.specification_id]);
             }
+            // State/Territory filters (direct field on crm.lead)
+            if (params.state_id) {
+                domain.push(['state_id', '=', params.state_id]);
+            }
+            if (params.state_name) {
+                domain.push(['state_id.name', 'ilike', params.state_name]);
+            }
+            // City filter
+            if (params.city) {
+                domain.push(['city', 'ilike', params.city]);
+            }
             // Get total count
             const total = await client.searchCount('crm.lead', domain);
             // Fetch records
@@ -1395,7 +1458,7 @@ Returns summary statistics including total won count and revenue, breakdown by t
                 })).sort((a, b) => b.count - a.count);
             }
             if (params.group_by === 'month') {
-                const byMonth = await client.readGroup('crm.lead', domain, ['date_closed:month', 'expected_revenue:sum', 'id:count'], ['date_closed:month']);
+                const byMonth = await client.readGroup('crm.lead', domain, ['expected_revenue:sum', 'id:count'], ['date_closed:month']);
                 analysis.by_month = byMonth.map(m => ({
                     month: m['date_closed:month'] || 'Unknown',
                     count: m.id || 0,
@@ -1443,6 +1506,27 @@ Returns summary statistics including total won count and revenue, breakdown by t
                     percentage: totalWon > 0 ? (s.id / totalWon) * 100 : 0,
                     won_revenue: s.expected_revenue || 0,
                     avg_deal: s.id > 0 ? (s.expected_revenue || 0) / s.id : 0
+                })).sort((a, b) => b.count - a.count);
+            }
+            if (params.group_by === 'state') {
+                const byState = await client.readGroup('crm.lead', domain, ['state_id', 'expected_revenue:sum', 'id:count'], ['state_id']);
+                analysis.by_state = byState.map(s => ({
+                    state_id: Array.isArray(s.state_id) ? s.state_id[0] : 0,
+                    state_name: Array.isArray(s.state_id) ? s.state_id[1] : 'Not Specified',
+                    count: s.id || 0,
+                    percentage: totalWon > 0 ? (s.id / totalWon) * 100 : 0,
+                    won_revenue: s.expected_revenue || 0,
+                    avg_deal: s.id > 0 ? (s.expected_revenue || 0) / s.id : 0
+                })).sort((a, b) => b.count - a.count);
+            }
+            if (params.group_by === 'city') {
+                const byCity = await client.readGroup('crm.lead', domain, ['city', 'expected_revenue:sum', 'id:count'], ['city']);
+                analysis.by_city = byCity.map(c => ({
+                    city: c.city || 'Not Specified',
+                    count: c.id || 0,
+                    percentage: totalWon > 0 ? (c.id / totalWon) * 100 : 0,
+                    won_revenue: c.expected_revenue || 0,
+                    avg_deal: c.id > 0 ? (c.expected_revenue || 0) / c.id : 0
                 })).sort((a, b) => b.count - a.count);
             }
             // Get top won opportunities
@@ -2142,6 +2226,14 @@ Returns a paginated list of activities with details including type, due date, st
                 if (params.filters.query) {
                     domain.push('|', '|', ['name', 'ilike', params.filters.query], ['contact_name', 'ilike', params.filters.query], ['email_from', 'ilike', params.filters.query]);
                 }
+                // State/Territory filters
+                if (params.filters.state_id)
+                    domain.push(['state_id', '=', params.filters.state_id]);
+                if (params.filters.state_name)
+                    domain.push(['state_id.name', 'ilike', params.filters.state_name]);
+                // City filter
+                if (params.filters.city)
+                    domain.push(['city', 'ilike', params.filters.city]);
             }
             // Setup export
             const format = params.format;
@@ -2239,7 +2331,7 @@ The server caches frequently accessed, rarely-changing data to improve performan
             if (params.action === 'clear') {
                 // Clear specific cache type or all
                 if (params.cache_type === 'all') {
-                    client.invalidateCache();
+                    await client.invalidateCache();
                     return {
                         content: [{ type: 'text', text: '## Cache Cleared\n\nAll cached data has been invalidated. Next API calls will fetch fresh data from Odoo.' }]
                     };
@@ -2254,10 +2346,10 @@ The server caches frequently accessed, rarely-changing data to improve performan
                     };
                     const cacheKey = keyMap[params.cache_type];
                     if (cacheKey) {
-                        cache.delete(cacheKey);
+                        await cache.delete(cacheKey);
                         // Also clear with different params if applicable
                         if (params.cache_type === 'lost_reasons') {
-                            cache.delete(CACHE_KEYS.lostReasons(true));
+                            await cache.delete(CACHE_KEYS.lostReasons(true));
                         }
                         return {
                             content: [{ type: 'text', text: `## Cache Cleared\n\n**${params.cache_type}** cache has been invalidated. Next call will fetch fresh data from Odoo.` }]
@@ -2266,10 +2358,35 @@ The server caches frequently accessed, rarely-changing data to improve performan
                 }
             }
             // Return cache status
-            const stats = client.getCacheStats();
+            const stats = await client.getCacheStats();
             let output = '## Cache Status\n\n';
             output += `**Total cached entries:** ${stats.size}\n\n`;
+            // Add hit/miss metrics section
+            output += '### Performance Metrics\n';
+            output += `- **Cache hits:** ${stats.metrics.hits}\n`;
+            output += `- **Cache misses:** ${stats.metrics.misses}\n`;
+            output += `- **Hit rate:** ${stats.metrics.hitRate}%\n`;
+            // Add helpful interpretation
+            if (stats.metrics.hits + stats.metrics.misses > 0) {
+                if (stats.metrics.hitRate >= 80) {
+                    output += '\n*Excellent cache efficiency - most requests served from cache.*\n';
+                }
+                else if (stats.metrics.hitRate >= 50) {
+                    output += '\n*Good cache efficiency - cache is saving many API calls.*\n';
+                }
+                else if (stats.metrics.hitRate > 0) {
+                    output += '\n*Low hit rate - cache may be expiring frequently or data is accessed once.*\n';
+                }
+                else {
+                    output += '\n*No cache hits yet - data will be cached on first access.*\n';
+                }
+            }
+            else {
+                output += '\n*No cache requests yet.*\n';
+            }
+            output += '\n';
             if (stats.size === 0) {
+                output += '### Cached Data:\n';
                 output += '*Cache is empty. Data will be fetched from Odoo on next request.*\n';
             }
             else {
@@ -2291,7 +2408,15 @@ The server caches frequently accessed, rarely-changing data to improve performan
             }
             return {
                 content: [{ type: 'text', text: output }],
-                structuredContent: { cache_size: stats.size, cached_keys: stats.keys }
+                structuredContent: {
+                    cache_size: stats.size,
+                    cached_keys: stats.keys,
+                    metrics: {
+                        hits: stats.metrics.hits,
+                        misses: stats.metrics.misses,
+                        hit_rate_percent: stats.metrics.hitRate
+                    }
+                }
             };
         }
         catch (error) {
@@ -2299,6 +2424,361 @@ The server caches frequently accessed, rarely-changing data to improve performan
             return {
                 isError: true,
                 content: [{ type: 'text', text: `Error accessing cache: ${message}` }]
+            };
+        }
+    });
+    // ============================================
+    // TOOL: Health Check
+    // ============================================
+    server.registerTool('odoo_crm_health_check', {
+        title: 'Health Check',
+        description: `Check Odoo CRM connectivity and server health.
+
+Verifies that the MCP server can connect to Odoo, measures API latency, and reports cache and circuit breaker statistics.
+
+**When to use:**
+- Debugging connection issues
+- Verifying Odoo is accessible
+- Monitoring server health
+- Checking cache performance
+- Viewing circuit breaker state
+
+Returns: status (healthy/unhealthy), odoo_connected, latency_ms, cache_entries, cache_hit_rate, circuit_breaker_state`,
+        inputSchema: HealthCheckSchema,
+        annotations: {
+            readOnlyHint: true,
+            destructiveHint: false,
+            idempotentHint: true,
+            openWorldHint: false
+        }
+    }, async (params) => {
+        const result = {
+            status: 'unhealthy',
+            odoo_connected: false,
+            latency_ms: null,
+            cache_entries: 0,
+            cache_hit_rate: 0,
+            circuit_breaker: {
+                state: 'UNKNOWN',
+                failure_count: 0,
+                seconds_until_retry: null
+            },
+            pool: {
+                size: 0,
+                available: 0,
+                borrowed: 0,
+                pending: 0,
+                min: 0,
+                max: 0
+            },
+            timestamp: new Date().toISOString()
+        };
+        try {
+            const client = getOdooClient();
+            // Get cache stats first (always works)
+            const cacheStats = await client.getCacheStats();
+            result.cache_entries = cacheStats.size;
+            result.cache_hit_rate = cacheStats.metrics.hitRate;
+            // Get connection pool metrics
+            const poolMetrics = getPoolMetrics();
+            result.pool = {
+                size: poolMetrics.size,
+                available: poolMetrics.available,
+                borrowed: poolMetrics.borrowed,
+                pending: poolMetrics.pending,
+                min: poolMetrics.min,
+                max: poolMetrics.max
+            };
+            // Get circuit breaker metrics
+            const cbMetrics = client.getCircuitBreakerMetrics();
+            result.circuit_breaker = {
+                state: cbMetrics.state,
+                failure_count: cbMetrics.failureCount,
+                seconds_until_retry: cbMetrics.secondsUntilHalfOpen
+            };
+            // Reset UID to force fresh authentication test
+            client.resetAuthCache();
+            // Measure authentication latency (5 second timeout)
+            const startTime = Date.now();
+            try {
+                await withTimeout(client.authenticate(), TIMEOUTS.HEALTH_CHECK, 'Odoo health check timed out');
+                const endTime = Date.now();
+                result.status = 'healthy';
+                result.odoo_connected = true;
+                result.latency_ms = endTime - startTime;
+                result.odoo_url = process.env.ODOO_URL || 'not configured';
+                result.odoo_database = process.env.ODOO_DB || 'not configured';
+            }
+            catch (authError) {
+                result.odoo_connected = false;
+                result.latency_ms = Date.now() - startTime;
+                if (authError instanceof TimeoutError) {
+                    result.error = `Connection timed out after ${TIMEOUTS.HEALTH_CHECK}ms`;
+                }
+                else {
+                    result.error = authError instanceof Error ? authError.message : 'Unknown authentication error';
+                }
+            }
+        }
+        catch (error) {
+            result.error = error instanceof Error ? error.message : 'Unknown error';
+        }
+        // Format output
+        if (params.response_format === ResponseFormat.JSON) {
+            return {
+                content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+                structuredContent: result
+            };
+        }
+        // Markdown format
+        let output = `## Health Check\n\n`;
+        output += `**Status:** ${result.status === 'healthy' ? 'Healthy' : 'Unhealthy'}\n`;
+        output += `**Timestamp:** ${result.timestamp}\n\n`;
+        output += `### Odoo Connectivity\n`;
+        output += `- **Connected:** ${result.odoo_connected ? 'Yes' : 'No'}\n`;
+        if (result.latency_ms !== null) {
+            output += `- **Latency:** ${result.latency_ms}ms\n`;
+        }
+        if (result.odoo_url) {
+            output += `- **URL:** ${result.odoo_url}\n`;
+        }
+        if (result.odoo_database) {
+            output += `- **Database:** ${result.odoo_database}\n`;
+        }
+        if (result.error) {
+            output += `- **Error:** ${result.error}\n`;
+        }
+        output += `\n### Cache Statistics\n`;
+        output += `- **Cached Entries:** ${result.cache_entries}\n`;
+        output += `- **Hit Rate:** ${result.cache_hit_rate}%\n`;
+        output += `\n### Connection Pool\n`;
+        output += `- **Size:** ${result.pool.size} (min: ${result.pool.min}, max: ${result.pool.max})\n`;
+        output += `- **Available:** ${result.pool.available}\n`;
+        output += `- **In Use:** ${result.pool.borrowed}\n`;
+        if (result.pool.pending > 0) {
+            output += `- **Waiting:** ${result.pool.pending} requests\n`;
+        }
+        output += `\n### Circuit Breaker\n`;
+        output += `- **State:** ${result.circuit_breaker.state}\n`;
+        output += `- **Failure Count:** ${result.circuit_breaker.failure_count}\n`;
+        if (result.circuit_breaker.seconds_until_retry !== null) {
+            output += `- **Retry In:** ${result.circuit_breaker.seconds_until_retry} seconds\n`;
+        }
+        if (result.circuit_breaker.state === 'OPEN') {
+            output += `\n*Circuit breaker is OPEN - Odoo requests are being blocked to prevent overload.*\n`;
+        }
+        else if (result.circuit_breaker.state === 'HALF_OPEN') {
+            output += `\n*Circuit breaker is testing if Odoo has recovered...*\n`;
+        }
+        if (result.status === 'healthy') {
+            if (result.latency_ms !== null && result.latency_ms < 500) {
+                output += `\n*Connection is fast and responsive.*`;
+            }
+            else if (result.latency_ms !== null && result.latency_ms < 2000) {
+                output += `\n*Connection is working but latency is moderate.*`;
+            }
+            else {
+                output += `\n*Connection is slow - check network or Odoo server load.*`;
+            }
+        }
+        else {
+            output += `\n*Unable to connect to Odoo. Check credentials and network connectivity.*`;
+        }
+        return {
+            content: [{ type: 'text', text: output }],
+            structuredContent: result
+        };
+    });
+    // ============================================
+    // TOOL: List States/Territories
+    // ============================================
+    server.registerTool('odoo_crm_list_states', {
+        title: 'List States/Territories',
+        description: `Get a list of Australian states/territories with optional CRM statistics.
+
+Returns all states for the specified country (default: Australia) with opportunity counts, won/lost counts, and revenue.
+
+**When to use:**
+- See which states/territories have the most opportunities
+- Get state IDs for filtering other tools
+- Geographic overview of CRM data`,
+        inputSchema: StatesListSchema,
+        annotations: {
+            readOnlyHint: true,
+            destructiveHint: false,
+            idempotentHint: true,
+            openWorldHint: true
+        }
+    }, async (params) => {
+        try {
+            const client = getOdooClient();
+            // Get states from cache
+            const states = await client.getStatesCached(params.country_code);
+            // Build result with or without stats
+            let statesWithStats = states.map(s => ({
+                id: s.id,
+                name: s.name,
+                code: s.code,
+                country_id: s.country_id
+            }));
+            if (params.include_stats) {
+                // Get opportunity counts by state
+                const oppCounts = await client.readGroup('crm.lead', [['type', '=', 'opportunity'], ['active', '=', true]], ['state_id', 'expected_revenue:sum', 'id:count'], ['state_id']);
+                const wonCounts = await client.readGroup('crm.lead', [['type', '=', 'opportunity'], ['probability', '=', 100]], ['state_id', 'id:count'], ['state_id']);
+                const lostCounts = await client.readGroup('crm.lead', [['type', '=', 'opportunity'], ['active', '=', false], ['probability', '=', 0]], ['state_id', 'id:count'], ['state_id']);
+                // Map stats to states
+                const oppCountMap = new Map(oppCounts.map(o => [
+                    Array.isArray(o.state_id) ? o.state_id[0] : 0,
+                    { count: o.id || 0, revenue: o.expected_revenue || 0 }
+                ]));
+                const wonCountMap = new Map(wonCounts.map(w => [
+                    Array.isArray(w.state_id) ? w.state_id[0] : 0,
+                    w.id || 0
+                ]));
+                const lostCountMap = new Map(lostCounts.map(l => [
+                    Array.isArray(l.state_id) ? l.state_id[0] : 0,
+                    l.id || 0
+                ]));
+                statesWithStats = states.map(s => ({
+                    id: s.id,
+                    name: s.name,
+                    code: s.code,
+                    country_id: s.country_id,
+                    opportunity_count: oppCountMap.get(s.id)?.count || 0,
+                    won_count: wonCountMap.get(s.id) || 0,
+                    lost_count: lostCountMap.get(s.id) || 0,
+                    total_revenue: oppCountMap.get(s.id)?.revenue || 0
+                }));
+                // Sort by opportunity count descending
+                statesWithStats.sort((a, b) => (b.opportunity_count || 0) - (a.opportunity_count || 0));
+            }
+            const output = formatStatesList(statesWithStats, params.country_code, params.response_format);
+            return {
+                content: [{ type: 'text', text: output }],
+                structuredContent: { states: statesWithStats, country_code: params.country_code }
+            };
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            return {
+                isError: true,
+                content: [{ type: 'text', text: `Error listing states: ${message}` }]
+            };
+        }
+    });
+    // ============================================
+    // TOOL: Compare States
+    // ============================================
+    server.registerTool('odoo_crm_compare_states', {
+        title: 'Compare State Performance',
+        description: `Compare CRM performance across Australian states/territories.
+
+Returns win/loss metrics, revenue, and win rates for each state, allowing geographic analysis of sales performance.
+
+**When to use:**
+- Identify top performing states/territories
+- Compare win rates across geographic regions
+- Analyze revenue distribution by state`,
+        inputSchema: CompareStatesSchema,
+        annotations: {
+            readOnlyHint: true,
+            destructiveHint: false,
+            idempotentHint: true,
+            openWorldHint: true
+        }
+    }, async (params) => {
+        try {
+            const client = getOdooClient();
+            // Build base domain with optional state filter
+            const baseDomain = [['type', '=', 'opportunity']];
+            if (params.state_ids && params.state_ids.length > 0) {
+                baseDomain.push(['state_id', 'in', params.state_ids]);
+            }
+            // Build date-filtered domain
+            const wonDomain = [...baseDomain, ['probability', '=', 100]];
+            const lostDomain = [...baseDomain, ['active', '=', false], ['probability', '=', 0]];
+            if (params.date_from) {
+                wonDomain.push(['date_closed', '>=', convertDateToUtc(params.date_from, false)]);
+                lostDomain.push(['date_closed', '>=', convertDateToUtc(params.date_from, false)]);
+            }
+            if (params.date_to) {
+                wonDomain.push(['date_closed', '<=', convertDateToUtc(params.date_to, true)]);
+                lostDomain.push(['date_closed', '<=', convertDateToUtc(params.date_to, true)]);
+            }
+            // Get won by state
+            const wonByState = await client.readGroup('crm.lead', wonDomain, ['state_id', 'expected_revenue:sum', 'id:count'], ['state_id']);
+            // Get lost by state
+            const lostByState = await client.readGroup('crm.lead', lostDomain, ['state_id', 'expected_revenue:sum', 'id:count'], ['state_id']);
+            // Build state maps
+            const wonMap = new Map(wonByState.map(w => [
+                Array.isArray(w.state_id) ? w.state_id[0] : 0,
+                {
+                    name: Array.isArray(w.state_id) ? w.state_id[1] : 'Not Specified',
+                    count: w.id || 0,
+                    revenue: w.expected_revenue || 0
+                }
+            ]));
+            const lostMap = new Map(lostByState.map(l => [
+                Array.isArray(l.state_id) ? l.state_id[0] : 0,
+                {
+                    name: Array.isArray(l.state_id) ? l.state_id[1] : 'Not Specified',
+                    count: l.id || 0,
+                    revenue: l.expected_revenue || 0
+                }
+            ]));
+            // Combine all state IDs
+            const allStateIds = new Set([...wonMap.keys(), ...lostMap.keys()]);
+            // Build comparison data
+            const states = [];
+            let totalWon = 0, totalLost = 0, totalWonRevenue = 0, totalLostRevenue = 0;
+            for (const stateId of allStateIds) {
+                const won = wonMap.get(stateId) || { name: 'Not Specified', count: 0, revenue: 0 };
+                const lost = lostMap.get(stateId) || { name: 'Not Specified', count: 0, revenue: 0 };
+                const total = won.count + lost.count;
+                const winRate = total > 0 ? (won.count / total) * 100 : 0;
+                const avgDealSize = won.count > 0 ? won.revenue / won.count : 0;
+                states.push({
+                    state_id: stateId,
+                    state_name: won.name || lost.name,
+                    won_count: won.count,
+                    lost_count: lost.count,
+                    won_revenue: won.revenue,
+                    lost_revenue: lost.revenue,
+                    win_rate: winRate,
+                    avg_deal_size: avgDealSize,
+                    total_opportunities: total
+                });
+                totalWon += won.count;
+                totalLost += lost.count;
+                totalWonRevenue += won.revenue;
+                totalLostRevenue += lost.revenue;
+            }
+            // Sort by won revenue descending
+            states.sort((a, b) => b.won_revenue - a.won_revenue);
+            const comparison = {
+                period: params.date_from || params.date_to
+                    ? `${params.date_from || 'Start'} to ${params.date_to || 'Now'}`
+                    : undefined,
+                states,
+                totals: {
+                    total_won: totalWon,
+                    total_lost: totalLost,
+                    total_won_revenue: totalWonRevenue,
+                    total_lost_revenue: totalLostRevenue,
+                    overall_win_rate: (totalWon + totalLost) > 0 ? (totalWon / (totalWon + totalLost)) * 100 : 0
+                }
+            };
+            const output = formatStateComparison(comparison, params.response_format);
+            return {
+                content: [{ type: 'text', text: output }],
+                structuredContent: comparison
+            };
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            return {
+                isError: true,
+                content: [{ type: 'text', text: `Error comparing states: ${message}` }]
             };
         }
     });

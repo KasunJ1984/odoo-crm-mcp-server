@@ -1,5 +1,5 @@
 import { ResponseFormat } from '../constants.js';
-import type { CrmLead, PaginatedResponse, PipelineSummary, SalesAnalytics, ActivitySummary, ResPartner, LostReasonWithCount, LostAnalysisSummary, LostOpportunity, LostTrendsSummary, WonOpportunity, WonAnalysisSummary, WonTrendsSummary, SalespersonWithStats, SalesTeamWithStats, PerformanceComparison, ActivityDetail, ExportResult, PipelineSummaryWithWeighted } from '../types.js';
+import type { CrmLead, PaginatedResponse, PipelineSummary, SalesAnalytics, ActivitySummary, ResPartner, LostReasonWithCount, LostAnalysisSummary, LostOpportunity, LostTrendsSummary, WonOpportunity, WonAnalysisSummary, WonTrendsSummary, SalespersonWithStats, SalesTeamWithStats, PerformanceComparison, ActivityDetail, ExportResult, PipelineSummaryWithWeighted, StateWithStats, StateComparison } from '../types.js';
 export declare function formatCurrency(value: number | undefined | null): string;
 export declare function formatPercent(value: number | undefined | null): string;
 export declare function formatDate(dateStr: string | undefined | null): string;
@@ -30,4 +30,6 @@ export declare function formatActivityList(data: PaginatedResponse<ActivityDetai
 export declare function formatExportResult(result: ExportResult, format: ResponseFormat): string;
 export declare function formatPipelineSummaryWithWeighted(stages: PipelineSummaryWithWeighted[], format: ResponseFormat): string;
 export declare function formatLeadListItemExtended(lead: CrmLead): string;
+export declare function formatStatesList(states: StateWithStats[], countryCode: string, format: ResponseFormat): string;
+export declare function formatStateComparison(comparison: StateComparison, format: ResponseFormat): string;
 //# sourceMappingURL=formatters.d.ts.map

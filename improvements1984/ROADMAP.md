@@ -22,7 +22,7 @@
 
 Estimated total: ~6 hours | Test after each item
 
-### [ ] 1.1 Add Cache Hit/Miss Metrics
+### [x] 1.1 Add Cache Hit/Miss Metrics
 **Impact:** Monitor and optimize cache performance
 **Effort:** ~1 hour
 **File:** `src/utils/cache.ts`
@@ -40,7 +40,7 @@ private misses = 0;
 
 ---
 
-### [ ] 1.2 Add Health Check Tool
+### [x] 1.2 Add Health Check Tool
 **Impact:** Debugging, monitoring, verify Odoo connectivity
 **Effort:** ~2 hours
 **Files:** `src/schemas/index.ts`, `src/tools/crm-tools.ts`
@@ -54,7 +54,7 @@ private misses = 0;
 
 ---
 
-### [ ] 1.3 Implement Retry Logic with Exponential Backoff
+### [x] 1.3 Implement Retry Logic with Exponential Backoff
 **Impact:** Resilience against transient Odoo failures
 **Effort:** ~2 hours
 **File:** `src/services/odoo-client.ts`
@@ -69,7 +69,7 @@ private misses = 0;
 
 ---
 
-### [ ] 1.4 Parallel Cache Warming on Startup
+### [x] 1.4 Parallel Cache Warming on Startup
 **Impact:** Faster first requests after server start
 **Effort:** ~1 hour
 **File:** `src/services/odoo-client.ts`
@@ -95,7 +95,7 @@ async warmCache(): Promise<void> {
 
 Estimated total: ~11 hours | Test after each item
 
-### [ ] 2.1 Stale-While-Revalidate Pattern
+### [x] 2.1 Stale-While-Revalidate Pattern
 **Impact:** Zero-latency cache hits even when refreshing
 **Effort:** ~4 hours
 **File:** `src/utils/cache.ts`
@@ -110,7 +110,7 @@ Estimated total: ~11 hours | Test after each item
 
 ---
 
-### [ ] 2.2 Add LRU Eviction with Max Size
+### [x] 2.2 Add LRU Eviction with Max Size
 **Impact:** Bounded memory usage, prevents unbounded growth
 **Effort:** ~3 hours
 **Options:**
@@ -127,15 +127,16 @@ const cache = new LRUCache({ max: 500, ttl: 1000 * 60 * 30 });
 
 ---
 
-### [ ] 2.3 Circuit Breaker Pattern
+### [x] 2.3 Circuit Breaker Pattern
 **Impact:** Graceful degradation when Odoo is down
 **Effort:** ~4 hours
-**File:** `src/services/odoo-client.ts` or new `src/utils/circuit-breaker.ts`
+**Files:** `src/utils/circuit-breaker.ts` (new), `src/services/odoo-client.ts`, `src/constants.ts`
 
 ```typescript
 // States: CLOSED (normal), OPEN (failing fast), HALF_OPEN (testing)
-// After N failures, open circuit for M seconds
-// Return cached data or error immediately when open
+// After 5 failures, open circuit for 60 seconds
+// Fail fast with CircuitBreakerError when open
+// Health check tool shows circuit breaker state
 ```
 
 **Testing:** Take Odoo offline, verify fast failures and recovery
@@ -144,20 +145,21 @@ const cache = new LRUCache({ max: 500, ttl: 1000 * 60 * 30 });
 
 ## Phase 3: Scale-Dependent (Implement When Needed)
 
-### [ ] 3.1 Redis Cache for Multi-Instance
+### [x] 3.1 Redis Cache for Multi-Instance
 **When:** Deploying multiple server instances
 **Effort:** ~8 hours
 **Dependencies:** `ioredis` package
+**Files:** `src/utils/cache-interface.ts` (new), `src/utils/cache-memory.ts` (new), `src/utils/cache-redis.ts` (new), `src/utils/cache.ts`, `src/constants.ts`
 
 ```typescript
-// Replace MemoryCache with Redis-backed cache
-// Enables shared cache across instances
-// Add REDIS_URL environment variable
+// Optional Redis cache via CACHE_TYPE=redis environment variable
+// Memory cache remains default for backward compatibility
+// Set REDIS_URL for Redis connection, CACHE_KEY_PREFIX for namespace
 ```
 
 ---
 
-### [ ] 3.2 Connection Pooling
+### [x] 3.2 Connection Pooling
 **When:** High concurrency (50+ simultaneous users)
 **Effort:** ~4 hours
 **Dependencies:** `generic-pool` package
@@ -199,7 +201,15 @@ const cache = new LRUCache({ max: 500, ttl: 1000 * 60 * 30 });
 | Date | Item | Status | Commit | Notes |
 |------|------|--------|--------|-------|
 | 2025-12-10 | Initial caching | Done | da12a75 | Stages, lost reasons, teams cached |
-| | | | | |
+| 2025-12-10 | 1.1 Cache Hit/Miss Metrics | Done | bfbeffb | Added hits/misses counters, getMetrics(), updated cache_status tool |
+| 2025-12-10 | 1.2 Health Check Tool | Done | 4d54129 | New odoo_crm_health_check tool with latency, cache stats |
+| 2025-12-10 | 1.3 Retry Logic | Done | 5d29eb5 | executeWithRetry with exponential backoff (1s, 2s, 4s) |
+| 2025-12-10 | 1.4 Cache Warming | Done | f32c83e | warmCache() preloads stages, teams, lost_reasons on startup |
+| 2025-12-10 | 2.1 Stale-While-Revalidate | Done | 50a99af | getWithRefresh() returns stale data while refreshing in background |
+| 2025-12-10 | 2.2 LRU Eviction | Done | a2a18ba | lru-cache package with max 500 entries, auto-eviction |
+| 2025-12-11 | 2.3 Circuit Breaker | Done | be1fe0a | CircuitBreaker class with CLOSED/OPEN/HALF_OPEN states |
+| 2025-12-11 | 3.1 Redis Cache | Done | 3ed4f0c | Optional Redis cache with ioredis, memory cache as default |
+| 2025-12-11 | 3.2 Connection Pooling | Done | - | generic-pool with shared circuit breaker, useClient() helper |
 
 ---
 
