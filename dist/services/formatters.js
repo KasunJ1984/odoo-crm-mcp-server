@@ -98,6 +98,9 @@ export function formatLeadList(data, format) {
     if (format === ResponseFormat.JSON) {
         return JSON.stringify(data, null, 2);
     }
+    if (format === ResponseFormat.CSV) {
+        return formatRecordsAsCSV(data.items);
+    }
     let output = `## Leads/Opportunities (${data.count} of ${data.total})\n\n`;
     if (data.items.length === 0) {
         output += '_No leads found matching your criteria._\n';
@@ -200,6 +203,9 @@ export function formatActivitySummary(summary, format) {
 export function formatContactList(data, format) {
     if (format === ResponseFormat.JSON) {
         return JSON.stringify(data, null, 2);
+    }
+    if (format === ResponseFormat.CSV) {
+        return formatRecordsAsCSV(data.items);
     }
     let output = `## Contacts (${data.count} of ${data.total})\n\n`;
     if (data.items.length === 0) {
@@ -371,6 +377,9 @@ export function formatLostOpportunitiesList(data, format) {
     if (format === ResponseFormat.JSON) {
         return JSON.stringify(data, null, 2);
     }
+    if (format === ResponseFormat.CSV) {
+        return formatRecordsAsCSV(data.items);
+    }
     let output = `## Lost Opportunities (${data.count} of ${data.total})\n\n`;
     if (data.items.length === 0) {
         output += '_No lost opportunities found matching your criteria._\n';
@@ -449,6 +458,9 @@ export function formatLostTrends(trends, format) {
 export function formatWonOpportunitiesList(data, format) {
     if (format === ResponseFormat.JSON) {
         return JSON.stringify(data, null, 2);
+    }
+    if (format === ResponseFormat.CSV) {
+        return formatRecordsAsCSV(data.items);
     }
     let output = `## Won Opportunities (${data.count} of ${data.total})\n\n`;
     if (data.items.length === 0) {
@@ -722,6 +734,9 @@ export function formatActivityList(data, format) {
     if (format === ResponseFormat.JSON) {
         return JSON.stringify(data, null, 2);
     }
+    if (format === ResponseFormat.CSV) {
+        return formatRecordsAsCSV(data.items);
+    }
     let output = `## CRM Activities (${data.count} of ${data.total})\n\n`;
     if (data.items.length === 0) {
         output += '_No activities found matching your criteria._\n';
@@ -915,6 +930,74 @@ export function formatStateComparison(comparison, format) {
         output += `- **Overall Win Rate:** ${formatPercent(comparison.totals.overall_win_rate)}\n`;
     }
     return output;
+}
+// =============================================================================
+// CSV FORMATTERS - Generic CSV output for any record array
+// =============================================================================
+/**
+ * Format any array of records as CSV.
+ * Handles special cases like Odoo relation fields [id, name] and arrays.
+ *
+ * @param records - Array of objects to format
+ * @param fields - Optional field order (uses object keys if not specified)
+ * @returns CSV string with header row
+ *
+ * @example
+ * // Basic usage
+ * formatRecordsAsCSV(leads)
+ *
+ * @example
+ * // With specific field order
+ * formatRecordsAsCSV(leads, ['id', 'name', 'email_from', 'expected_revenue'])
+ */
+export function formatRecordsAsCSV(records, fields) {
+    if (records.length === 0) {
+        return fields ? fields.join(',') : '';
+    }
+    // Determine columns - use provided fields or object keys
+    const columns = fields || Object.keys(records[0]);
+    // Helper to escape CSV values
+    const escapeCSV = (value) => {
+        if (value === null || value === undefined)
+            return '';
+        // Handle Odoo relation fields: [id, name] -> name
+        if (Array.isArray(value)) {
+            if (value.length === 2 && typeof value[0] === 'number') {
+                return escapeCSV(value[1]); // Return the name part
+            }
+            // Handle other arrays (like tag_ids)
+            return value.map(v => {
+                if (Array.isArray(v) && v.length === 2 && typeof v[0] === 'number') {
+                    return String(v[1]);
+                }
+                return String(v);
+            }).join(';');
+        }
+        // Handle booleans
+        if (typeof value === 'boolean') {
+            return value ? 'Yes' : 'No';
+        }
+        // Handle dates (format nicely)
+        if (value instanceof Date) {
+            return value.toISOString().split('T')[0];
+        }
+        // Handle objects
+        if (typeof value === 'object') {
+            return JSON.stringify(value);
+        }
+        // Convert to string
+        const str = String(value);
+        // Escape if contains comma, quote, or newline
+        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+            return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+    };
+    // Header row
+    const header = columns.join(',');
+    // Data rows
+    const rows = records.map(record => columns.map(col => escapeCSV(record[col])).join(','));
+    return [header, ...rows].join('\n');
 }
 /**
  * Format a list of fields for display.

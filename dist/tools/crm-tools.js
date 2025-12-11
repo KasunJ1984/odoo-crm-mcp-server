@@ -1,5 +1,5 @@
 import { getOdooClient } from '../services/odoo-client.js';
-import { getPoolMetrics } from '../services/odoo-pool.js';
+import { getPoolMetrics, useClient } from '../services/odoo-pool.js';
 import { formatLeadList, formatLeadDetail, formatPipelineSummary, formatSalesAnalytics, formatContactList, formatActivitySummary, getRelationName, formatLostReasonsList, formatLostAnalysis, formatLostOpportunitiesList, formatLostTrends, formatDate, formatWonOpportunitiesList, formatWonAnalysis, formatWonTrends, formatSalespeopleList, formatTeamsList, formatPerformanceComparison, formatActivityList, formatExportResult, formatStatesList, formatStateComparison, formatFieldsList } from '../services/formatters.js';
 import { LeadSearchSchema, LeadDetailSchema, PipelineSummarySchema, SalesAnalyticsSchema, ContactSearchSchema, ActivitySummarySchema, StageListSchema, LostReasonsListSchema, LostAnalysisSchema, LostOpportunitiesSearchSchema, LostTrendsSchema, WonOpportunitiesSearchSchema, WonAnalysisSchema, WonTrendsSchema, SalespeopleListSchema, TeamsListSchema, ComparePerformanceSchema, ActivitySearchSchema, ExportDataSchema, StatesListSchema, CompareStatesSchema, CacheStatusSchema, HealthCheckSchema, ListFieldsSchema } from '../schemas/index.js';
 import { CRM_FIELDS, CONTEXT_LIMITS, ResponseFormat, EXPORT_CONFIG, FIELD_PRESETS, resolveFields } from '../constants.js';
@@ -38,106 +38,107 @@ Returns paginated list with: name, contact, email, stage, revenue, probability`,
         }
     }, async (params) => {
         try {
-            const client = getOdooClient();
-            // Build domain filter
-            const domain = [];
-            if (params.active_only) {
-                domain.push(['active', '=', true]);
-            }
-            if (params.query) {
-                // OR search across name, contact, and email using Polish notation
-                domain.push('|', '|', ['name', 'ilike', params.query], ['contact_name', 'ilike', params.query], ['email_from', 'ilike', params.query]);
-            }
-            if (params.stage_id) {
-                domain.push(['stage_id', '=', params.stage_id]);
-            }
-            if (params.stage_name) {
-                domain.push(['stage_id.name', 'ilike', params.stage_name]);
-            }
-            if (params.user_id) {
-                domain.push(['user_id', '=', params.user_id]);
-            }
-            if (params.type) {
-                domain.push(['type', '=', params.type]);
-            }
-            if (params.min_revenue !== undefined) {
-                domain.push(['expected_revenue', '>=', params.min_revenue]);
-            }
-            if (params.max_revenue !== undefined) {
-                domain.push(['expected_revenue', '<=', params.max_revenue]);
-            }
-            if (params.min_probability !== undefined) {
-                domain.push(['probability', '>=', params.min_probability]);
-            }
-            // Date filters based on date_field (convert Sydney time to UTC)
-            const dateField = params.date_field || 'create_date';
-            if (params.date_from) {
-                domain.push([dateField, '>=', convertDateToUtc(params.date_from, false)]);
-            }
-            if (params.date_to) {
-                domain.push([dateField, '<=', convertDateToUtc(params.date_to, true)]);
-            }
-            // Explicit date_closed filters (convert Sydney time to UTC)
-            if (params.date_closed_from) {
-                domain.push(['date_closed', '>=', convertDateToUtc(params.date_closed_from, false)]);
-            }
-            if (params.date_closed_to) {
-                domain.push(['date_closed', '<=', convertDateToUtc(params.date_closed_to, true)]);
-            }
-            // Team filter
-            if (params.team_id) {
-                domain.push(['team_id', '=', params.team_id]);
-            }
-            // Classification filters
-            if (params.lead_source_id) {
-                domain.push(['lead_source_id', '=', params.lead_source_id]);
-            }
-            if (params.sector) {
-                domain.push(['sector', 'ilike', params.sector]);
-            }
-            if (params.specification_id) {
-                domain.push(['specification_id', '=', params.specification_id]);
-            }
-            // State/Territory filters (direct field on crm.lead)
-            if (params.state_id) {
-                domain.push(['state_id', '=', params.state_id]);
-            }
-            if (params.state_name) {
-                domain.push(['state_id.name', 'ilike', params.state_name]);
-            }
-            // City filter
-            if (params.city) {
-                domain.push(['city', 'ilike', params.city]);
-            }
-            // Get total count
-            const total = await client.searchCount('crm.lead', domain);
-            // Resolve fields from preset or custom array
-            const fields = resolveFields(params.fields, 'lead', 'basic');
-            // Fetch records
-            const leads = await client.searchRead('crm.lead', domain, fields, {
-                offset: params.offset,
-                limit: params.limit,
-                order: `${params.order_by} ${params.order_dir}`
+            return await useClient(async (client) => {
+                // Build domain filter
+                const domain = [];
+                if (params.active_only) {
+                    domain.push(['active', '=', true]);
+                }
+                if (params.query) {
+                    // OR search across name, contact, and email using Polish notation
+                    domain.push('|', '|', ['name', 'ilike', params.query], ['contact_name', 'ilike', params.query], ['email_from', 'ilike', params.query]);
+                }
+                if (params.stage_id) {
+                    domain.push(['stage_id', '=', params.stage_id]);
+                }
+                if (params.stage_name) {
+                    domain.push(['stage_id.name', 'ilike', params.stage_name]);
+                }
+                if (params.user_id) {
+                    domain.push(['user_id', '=', params.user_id]);
+                }
+                if (params.type) {
+                    domain.push(['type', '=', params.type]);
+                }
+                if (params.min_revenue !== undefined) {
+                    domain.push(['expected_revenue', '>=', params.min_revenue]);
+                }
+                if (params.max_revenue !== undefined) {
+                    domain.push(['expected_revenue', '<=', params.max_revenue]);
+                }
+                if (params.min_probability !== undefined) {
+                    domain.push(['probability', '>=', params.min_probability]);
+                }
+                // Date filters based on date_field (convert Sydney time to UTC)
+                const dateField = params.date_field || 'create_date';
+                if (params.date_from) {
+                    domain.push([dateField, '>=', convertDateToUtc(params.date_from, false)]);
+                }
+                if (params.date_to) {
+                    domain.push([dateField, '<=', convertDateToUtc(params.date_to, true)]);
+                }
+                // Explicit date_closed filters (convert Sydney time to UTC)
+                if (params.date_closed_from) {
+                    domain.push(['date_closed', '>=', convertDateToUtc(params.date_closed_from, false)]);
+                }
+                if (params.date_closed_to) {
+                    domain.push(['date_closed', '<=', convertDateToUtc(params.date_closed_to, true)]);
+                }
+                // Team filter
+                if (params.team_id) {
+                    domain.push(['team_id', '=', params.team_id]);
+                }
+                // Classification filters
+                if (params.lead_source_id) {
+                    domain.push(['lead_source_id', '=', params.lead_source_id]);
+                }
+                if (params.sector) {
+                    domain.push(['sector', 'ilike', params.sector]);
+                }
+                if (params.specification_id) {
+                    domain.push(['specification_id', '=', params.specification_id]);
+                }
+                // State/Territory filters (direct field on crm.lead)
+                if (params.state_id) {
+                    domain.push(['state_id', '=', params.state_id]);
+                }
+                if (params.state_name) {
+                    domain.push(['state_id.name', 'ilike', params.state_name]);
+                }
+                // City filter
+                if (params.city) {
+                    domain.push(['city', 'ilike', params.city]);
+                }
+                // Get total count
+                const total = await client.searchCount('crm.lead', domain);
+                // Resolve fields from preset or custom array
+                const fields = resolveFields(params.fields, 'lead', 'basic');
+                // Fetch records
+                const leads = await client.searchRead('crm.lead', domain, fields, {
+                    offset: params.offset,
+                    limit: params.limit,
+                    order: `${params.order_by} ${params.order_dir}`
+                });
+                // Build paginated response
+                const response = {
+                    total,
+                    count: leads.length,
+                    offset: params.offset,
+                    limit: params.limit,
+                    items: leads,
+                    has_more: total > params.offset + leads.length,
+                    next_offset: total > params.offset + leads.length ? params.offset + leads.length : undefined
+                };
+                // Add context note if large dataset
+                if (total > CONTEXT_LIMITS.SUMMARY_THRESHOLD && params.limit < total) {
+                    response.context_note = `Large dataset (${total} records). Consider using filters or odoo_crm_get_pipeline_summary for overview.`;
+                }
+                const output = formatLeadList(response, params.response_format);
+                return {
+                    content: [{ type: 'text', text: output }],
+                    structuredContent: response
+                };
             });
-            // Build paginated response
-            const response = {
-                total,
-                count: leads.length,
-                offset: params.offset,
-                limit: params.limit,
-                items: leads,
-                has_more: total > params.offset + leads.length,
-                next_offset: total > params.offset + leads.length ? params.offset + leads.length : undefined
-            };
-            // Add context note if large dataset
-            if (total > CONTEXT_LIMITS.SUMMARY_THRESHOLD && params.limit < total) {
-                response.context_note = `Large dataset (${total} records). Consider using filters or odoo_crm_get_pipeline_summary for overview.`;
-            }
-            const output = formatLeadList(response, params.response_format);
-            return {
-                content: [{ type: 'text', text: output }],
-                structuredContent: response
-            };
         }
         catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
@@ -171,27 +172,28 @@ Returns all available fields for the lead including description/notes.`,
         }
     }, async (params) => {
         try {
-            const client = getOdooClient();
-            // Resolve fields from preset or custom array (default: full for detail views)
-            const fields = resolveFields(params.fields, 'lead', 'full');
-            const leads = await client.read('crm.lead', [params.lead_id], fields);
-            if (leads.length === 0) {
+            return await useClient(async (client) => {
+                // Resolve fields from preset or custom array (default: full for detail views)
+                const fields = resolveFields(params.fields, 'lead', 'full');
+                const leads = await client.read('crm.lead', [params.lead_id], fields);
+                if (leads.length === 0) {
+                    return {
+                        isError: true,
+                        content: [{ type: 'text', text: `Lead with ID ${params.lead_id} not found.` }]
+                    };
+                }
+                const lead = leads[0];
+                if (params.response_format === ResponseFormat.JSON) {
+                    return {
+                        content: [{ type: 'text', text: JSON.stringify(lead, null, 2) }],
+                        structuredContent: lead
+                    };
+                }
                 return {
-                    isError: true,
-                    content: [{ type: 'text', text: `Lead with ID ${params.lead_id} not found.` }]
-                };
-            }
-            const lead = leads[0];
-            if (params.response_format === ResponseFormat.JSON) {
-                return {
-                    content: [{ type: 'text', text: JSON.stringify(lead, null, 2) }],
+                    content: [{ type: 'text', text: formatLeadDetail(lead) }],
                     structuredContent: lead
                 };
-            }
-            return {
-                content: [{ type: 'text', text: formatLeadDetail(lead) }],
-                structuredContent: lead
-            };
+            });
         }
         catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
@@ -410,61 +412,62 @@ Returns: name, email, phone, city, country`,
         }
     }, async (params) => {
         try {
-            const client = getOdooClient();
-            // Build domain
-            const domain = [];
-            if (params.query) {
-                // OR search across name, email, and phone using Polish notation
-                domain.push('|', '|', ['name', 'ilike', params.query], ['email', 'ilike', params.query], ['phone', 'ilike', params.query]);
-            }
-            if (params.is_company !== undefined) {
-                domain.push(['is_company', '=', params.is_company]);
-            }
-            if (params.country) {
-                domain.push(['country_id.name', 'ilike', params.country]);
-            }
-            if (params.city) {
-                domain.push(['city', 'ilike', params.city]);
-            }
-            // State/Territory filters
-            if (params.state_id) {
-                domain.push(['state_id', '=', params.state_id]);
-            }
-            if (params.state_name) {
-                domain.push(['state_id.name', 'ilike', params.state_name]);
-            }
-            if (params.has_opportunities) {
-                // Get partner IDs with opportunities
-                const opps = await client.searchRead('crm.lead', [['partner_id', '!=', false]], ['partner_id'], { limit: 1000 });
-                const partnerIds = [...new Set(opps.map(o => o.partner_id?.[0]).filter(Boolean))];
-                if (partnerIds.length > 0) {
-                    domain.push(['id', 'in', partnerIds]);
+            return await useClient(async (client) => {
+                // Build domain
+                const domain = [];
+                if (params.query) {
+                    // OR search across name, email, and phone using Polish notation
+                    domain.push('|', '|', ['name', 'ilike', params.query], ['email', 'ilike', params.query], ['phone', 'ilike', params.query]);
                 }
-            }
-            // Get total count
-            const total = await client.searchCount('res.partner', domain);
-            // Resolve fields from preset or custom array
-            const fields = resolveFields(params.fields, 'contact', 'basic');
-            // Fetch records
-            const contacts = await client.searchRead('res.partner', domain, fields, {
-                offset: params.offset,
-                limit: params.limit,
-                order: 'name asc'
+                if (params.is_company !== undefined) {
+                    domain.push(['is_company', '=', params.is_company]);
+                }
+                if (params.country) {
+                    domain.push(['country_id.name', 'ilike', params.country]);
+                }
+                if (params.city) {
+                    domain.push(['city', 'ilike', params.city]);
+                }
+                // State/Territory filters
+                if (params.state_id) {
+                    domain.push(['state_id', '=', params.state_id]);
+                }
+                if (params.state_name) {
+                    domain.push(['state_id.name', 'ilike', params.state_name]);
+                }
+                if (params.has_opportunities) {
+                    // Get partner IDs with opportunities
+                    const opps = await client.searchRead('crm.lead', [['partner_id', '!=', false]], ['partner_id'], { limit: 1000 });
+                    const partnerIds = [...new Set(opps.map(o => o.partner_id?.[0]).filter(Boolean))];
+                    if (partnerIds.length > 0) {
+                        domain.push(['id', 'in', partnerIds]);
+                    }
+                }
+                // Get total count
+                const total = await client.searchCount('res.partner', domain);
+                // Resolve fields from preset or custom array
+                const fields = resolveFields(params.fields, 'contact', 'basic');
+                // Fetch records
+                const contacts = await client.searchRead('res.partner', domain, fields, {
+                    offset: params.offset,
+                    limit: params.limit,
+                    order: 'name asc'
+                });
+                const response = {
+                    total,
+                    count: contacts.length,
+                    offset: params.offset,
+                    limit: params.limit,
+                    items: contacts,
+                    has_more: total > params.offset + contacts.length,
+                    next_offset: total > params.offset + contacts.length ? params.offset + contacts.length : undefined
+                };
+                const output = formatContactList(response, params.response_format);
+                return {
+                    content: [{ type: 'text', text: output }],
+                    structuredContent: response
+                };
             });
-            const response = {
-                total,
-                count: contacts.length,
-                offset: params.offset,
-                limit: params.limit,
-                items: contacts,
-                has_more: total > params.offset + contacts.length,
-                next_offset: total > params.offset + contacts.length ? params.offset + contacts.length : undefined
-            };
-            const output = formatContactList(response, params.response_format);
-            return {
-                content: [{ type: 'text', text: output }],
-                structuredContent: response
-            };
         }
         catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
@@ -934,97 +937,98 @@ Returns a paginated list of lost opportunities with details including the lost r
         }
     }, async (params) => {
         try {
-            const client = getOdooClient();
-            // Build domain for lost opportunities
-            // Lost = active=False AND probability=0 (archived opportunities with 0% probability)
-            const domain = [
-                ['type', '=', 'opportunity'],
-                ['active', '=', false],
-                ['probability', '=', 0]
-            ];
-            // Default to last 90 days if no date filter specified (prevents timeout on large datasets)
-            // Use getDaysAgoUtc to get Sydney-timezone-aware 90 days ago converted to UTC
-            if (!params.date_from && !params.date_to) {
-                domain.push(['date_closed', '>=', getDaysAgoUtc(90, false)]);
-            }
-            // Apply search filters
-            if (params.query) {
-                domain.push('|', '|', ['name', 'ilike', params.query], ['contact_name', 'ilike', params.query], ['email_from', 'ilike', params.query]);
-            }
-            if (params.lost_reason_id) {
-                domain.push(['lost_reason_id', '=', params.lost_reason_id]);
-            }
-            if (params.lost_reason_name) {
-                domain.push(['lost_reason_id.name', 'ilike', params.lost_reason_name]);
-            }
-            if (params.user_id) {
-                domain.push(['user_id', '=', params.user_id]);
-            }
-            if (params.team_id) {
-                domain.push(['team_id', '=', params.team_id]);
-            }
-            if (params.stage_id) {
-                domain.push(['stage_id', '=', params.stage_id]);
-            }
-            // Convert Sydney time to UTC for date filters
-            if (params.date_from) {
-                domain.push(['date_closed', '>=', convertDateToUtc(params.date_from, false)]);
-            }
-            if (params.date_to) {
-                domain.push(['date_closed', '<=', convertDateToUtc(params.date_to, true)]);
-            }
-            if (params.min_revenue !== undefined) {
-                domain.push(['expected_revenue', '>=', params.min_revenue]);
-            }
-            if (params.max_revenue !== undefined) {
-                domain.push(['expected_revenue', '<=', params.max_revenue]);
-            }
-            // Classification filters
-            if (params.lead_source_id) {
-                domain.push(['lead_source_id', '=', params.lead_source_id]);
-            }
-            if (params.sector) {
-                domain.push(['sector', 'ilike', params.sector]);
-            }
-            if (params.specification_id) {
-                domain.push(['specification_id', '=', params.specification_id]);
-            }
-            // State/Territory filters (direct field on crm.lead)
-            if (params.state_id) {
-                domain.push(['state_id', '=', params.state_id]);
-            }
-            if (params.state_name) {
-                domain.push(['state_id.name', 'ilike', params.state_name]);
-            }
-            // City filter
-            if (params.city) {
-                domain.push(['city', 'ilike', params.city]);
-            }
-            // Get total count
-            const total = await client.searchCount('crm.lead', domain);
-            // Resolve fields from preset or custom array
-            const fields = resolveFields(params.fields, 'lost', 'basic');
-            // Fetch records
-            const opportunities = await client.searchRead('crm.lead', domain, fields, {
-                offset: params.offset,
-                limit: params.limit,
-                order: `${params.order_by} ${params.order_dir}`
+            return await useClient(async (client) => {
+                // Build domain for lost opportunities
+                // Lost = active=False AND probability=0 (archived opportunities with 0% probability)
+                const domain = [
+                    ['type', '=', 'opportunity'],
+                    ['active', '=', false],
+                    ['probability', '=', 0]
+                ];
+                // Default to last 90 days if no date filter specified (prevents timeout on large datasets)
+                // Use getDaysAgoUtc to get Sydney-timezone-aware 90 days ago converted to UTC
+                if (!params.date_from && !params.date_to) {
+                    domain.push(['date_closed', '>=', getDaysAgoUtc(90, false)]);
+                }
+                // Apply search filters
+                if (params.query) {
+                    domain.push('|', '|', ['name', 'ilike', params.query], ['contact_name', 'ilike', params.query], ['email_from', 'ilike', params.query]);
+                }
+                if (params.lost_reason_id) {
+                    domain.push(['lost_reason_id', '=', params.lost_reason_id]);
+                }
+                if (params.lost_reason_name) {
+                    domain.push(['lost_reason_id.name', 'ilike', params.lost_reason_name]);
+                }
+                if (params.user_id) {
+                    domain.push(['user_id', '=', params.user_id]);
+                }
+                if (params.team_id) {
+                    domain.push(['team_id', '=', params.team_id]);
+                }
+                if (params.stage_id) {
+                    domain.push(['stage_id', '=', params.stage_id]);
+                }
+                // Convert Sydney time to UTC for date filters
+                if (params.date_from) {
+                    domain.push(['date_closed', '>=', convertDateToUtc(params.date_from, false)]);
+                }
+                if (params.date_to) {
+                    domain.push(['date_closed', '<=', convertDateToUtc(params.date_to, true)]);
+                }
+                if (params.min_revenue !== undefined) {
+                    domain.push(['expected_revenue', '>=', params.min_revenue]);
+                }
+                if (params.max_revenue !== undefined) {
+                    domain.push(['expected_revenue', '<=', params.max_revenue]);
+                }
+                // Classification filters
+                if (params.lead_source_id) {
+                    domain.push(['lead_source_id', '=', params.lead_source_id]);
+                }
+                if (params.sector) {
+                    domain.push(['sector', 'ilike', params.sector]);
+                }
+                if (params.specification_id) {
+                    domain.push(['specification_id', '=', params.specification_id]);
+                }
+                // State/Territory filters (direct field on crm.lead)
+                if (params.state_id) {
+                    domain.push(['state_id', '=', params.state_id]);
+                }
+                if (params.state_name) {
+                    domain.push(['state_id.name', 'ilike', params.state_name]);
+                }
+                // City filter
+                if (params.city) {
+                    domain.push(['city', 'ilike', params.city]);
+                }
+                // Get total count
+                const total = await client.searchCount('crm.lead', domain);
+                // Resolve fields from preset or custom array
+                const fields = resolveFields(params.fields, 'lost', 'basic');
+                // Fetch records
+                const opportunities = await client.searchRead('crm.lead', domain, fields, {
+                    offset: params.offset,
+                    limit: params.limit,
+                    order: `${params.order_by} ${params.order_dir}`
+                });
+                // Build paginated response
+                const response = {
+                    total,
+                    count: opportunities.length,
+                    offset: params.offset,
+                    limit: params.limit,
+                    items: opportunities,
+                    has_more: total > params.offset + opportunities.length,
+                    next_offset: total > params.offset + opportunities.length ? params.offset + opportunities.length : undefined
+                };
+                const output = formatLostOpportunitiesList(response, params.response_format);
+                return {
+                    content: [{ type: 'text', text: output }],
+                    structuredContent: response
+                };
             });
-            // Build paginated response
-            const response = {
-                total,
-                count: opportunities.length,
-                offset: params.offset,
-                limit: params.limit,
-                items: opportunities,
-                has_more: total > params.offset + opportunities.length,
-                next_offset: total > params.offset + opportunities.length ? params.offset + opportunities.length : undefined
-            };
-            const output = formatLostOpportunitiesList(response, params.response_format);
-            return {
-                content: [{ type: 'text', text: output }],
-                structuredContent: response
-            };
         }
         catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
@@ -1270,84 +1274,85 @@ Returns a paginated list of won opportunities with details including revenue, sa
         }
     }, async (params) => {
         try {
-            const client = getOdooClient();
-            // Build domain for won opportunities (probability = 100 or stage is_won = true)
-            const domain = [
-                ['type', '=', 'opportunity'],
-                ['probability', '=', 100]
-            ];
-            // Apply search filters
-            if (params.query) {
-                domain.push('|', '|', ['name', 'ilike', params.query], ['contact_name', 'ilike', params.query], ['email_from', 'ilike', params.query]);
-            }
-            if (params.user_id) {
-                domain.push(['user_id', '=', params.user_id]);
-            }
-            if (params.team_id) {
-                domain.push(['team_id', '=', params.team_id]);
-            }
-            if (params.stage_id) {
-                domain.push(['stage_id', '=', params.stage_id]);
-            }
-            // Convert Sydney time to UTC for date filters
-            if (params.date_from) {
-                domain.push(['date_closed', '>=', convertDateToUtc(params.date_from, false)]);
-            }
-            if (params.date_to) {
-                domain.push(['date_closed', '<=', convertDateToUtc(params.date_to, true)]);
-            }
-            if (params.min_revenue !== undefined) {
-                domain.push(['expected_revenue', '>=', params.min_revenue]);
-            }
-            if (params.max_revenue !== undefined) {
-                domain.push(['expected_revenue', '<=', params.max_revenue]);
-            }
-            // Classification filters
-            if (params.lead_source_id) {
-                domain.push(['lead_source_id', '=', params.lead_source_id]);
-            }
-            if (params.sector) {
-                domain.push(['sector', 'ilike', params.sector]);
-            }
-            if (params.specification_id) {
-                domain.push(['specification_id', '=', params.specification_id]);
-            }
-            // State/Territory filters (direct field on crm.lead)
-            if (params.state_id) {
-                domain.push(['state_id', '=', params.state_id]);
-            }
-            if (params.state_name) {
-                domain.push(['state_id.name', 'ilike', params.state_name]);
-            }
-            // City filter
-            if (params.city) {
-                domain.push(['city', 'ilike', params.city]);
-            }
-            // Get total count
-            const total = await client.searchCount('crm.lead', domain);
-            // Resolve fields from preset or custom array
-            const fields = resolveFields(params.fields, 'won', 'basic');
-            // Fetch records
-            const opportunities = await client.searchRead('crm.lead', domain, fields, {
-                offset: params.offset,
-                limit: params.limit,
-                order: `${params.order_by} ${params.order_dir}`
+            return await useClient(async (client) => {
+                // Build domain for won opportunities (probability = 100 or stage is_won = true)
+                const domain = [
+                    ['type', '=', 'opportunity'],
+                    ['probability', '=', 100]
+                ];
+                // Apply search filters
+                if (params.query) {
+                    domain.push('|', '|', ['name', 'ilike', params.query], ['contact_name', 'ilike', params.query], ['email_from', 'ilike', params.query]);
+                }
+                if (params.user_id) {
+                    domain.push(['user_id', '=', params.user_id]);
+                }
+                if (params.team_id) {
+                    domain.push(['team_id', '=', params.team_id]);
+                }
+                if (params.stage_id) {
+                    domain.push(['stage_id', '=', params.stage_id]);
+                }
+                // Convert Sydney time to UTC for date filters
+                if (params.date_from) {
+                    domain.push(['date_closed', '>=', convertDateToUtc(params.date_from, false)]);
+                }
+                if (params.date_to) {
+                    domain.push(['date_closed', '<=', convertDateToUtc(params.date_to, true)]);
+                }
+                if (params.min_revenue !== undefined) {
+                    domain.push(['expected_revenue', '>=', params.min_revenue]);
+                }
+                if (params.max_revenue !== undefined) {
+                    domain.push(['expected_revenue', '<=', params.max_revenue]);
+                }
+                // Classification filters
+                if (params.lead_source_id) {
+                    domain.push(['lead_source_id', '=', params.lead_source_id]);
+                }
+                if (params.sector) {
+                    domain.push(['sector', 'ilike', params.sector]);
+                }
+                if (params.specification_id) {
+                    domain.push(['specification_id', '=', params.specification_id]);
+                }
+                // State/Territory filters (direct field on crm.lead)
+                if (params.state_id) {
+                    domain.push(['state_id', '=', params.state_id]);
+                }
+                if (params.state_name) {
+                    domain.push(['state_id.name', 'ilike', params.state_name]);
+                }
+                // City filter
+                if (params.city) {
+                    domain.push(['city', 'ilike', params.city]);
+                }
+                // Get total count
+                const total = await client.searchCount('crm.lead', domain);
+                // Resolve fields from preset or custom array
+                const fields = resolveFields(params.fields, 'won', 'basic');
+                // Fetch records
+                const opportunities = await client.searchRead('crm.lead', domain, fields, {
+                    offset: params.offset,
+                    limit: params.limit,
+                    order: `${params.order_by} ${params.order_dir}`
+                });
+                // Build paginated response
+                const response = {
+                    total,
+                    count: opportunities.length,
+                    offset: params.offset,
+                    limit: params.limit,
+                    items: opportunities,
+                    has_more: total > params.offset + opportunities.length,
+                    next_offset: total > params.offset + opportunities.length ? params.offset + opportunities.length : undefined
+                };
+                const output = formatWonOpportunitiesList(response, params.response_format);
+                return {
+                    content: [{ type: 'text', text: output }],
+                    structuredContent: response
+                };
             });
-            // Build paginated response
-            const response = {
-                total,
-                count: opportunities.length,
-                offset: params.offset,
-                limit: params.limit,
-                items: opportunities,
-                has_more: total > params.offset + opportunities.length,
-                next_offset: total > params.offset + opportunities.length ? params.offset + opportunities.length : undefined
-            };
-            const output = formatWonOpportunitiesList(response, params.response_format);
-            return {
-                content: [{ type: 'text', text: output }],
-                structuredContent: response
-            };
         }
         catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
@@ -2064,78 +2069,79 @@ Returns a paginated list of activities with details including type, due date, st
         }
     }, async (params) => {
         try {
-            const client = getOdooClient();
-            const today = new Date().toISOString().split('T')[0];
-            // Build domain
-            const domain = [['res_model', '=', 'crm.lead']];
-            if (params.user_id) {
-                domain.push(['user_id', '=', params.user_id]);
-            }
-            if (params.lead_id) {
-                domain.push(['res_id', '=', params.lead_id]);
-            }
-            // Convert Sydney time to UTC for date filters (applies to date_deadline for consistency)
-            if (params.date_from) {
-                domain.push(['date_deadline', '>=', convertDateToUtc(params.date_from, false)]);
-            }
-            if (params.date_to) {
-                domain.push(['date_deadline', '<=', convertDateToUtc(params.date_to, true)]);
-            }
-            // Activity type filter
-            if (params.activity_type !== 'all') {
-                domain.push(['activity_type_id.name', 'ilike', params.activity_type]);
-            }
-            // Status filter
-            if (params.status !== 'all') {
-                if (params.status === 'overdue') {
-                    domain.push(['date_deadline', '<', today]);
+            return await useClient(async (client) => {
+                const today = new Date().toISOString().split('T')[0];
+                // Build domain
+                const domain = [['res_model', '=', 'crm.lead']];
+                if (params.user_id) {
+                    domain.push(['user_id', '=', params.user_id]);
                 }
-                else if (params.status === 'today') {
-                    domain.push(['date_deadline', '=', today]);
+                if (params.lead_id) {
+                    domain.push(['res_id', '=', params.lead_id]);
                 }
-                else if (params.status === 'upcoming') {
-                    domain.push(['date_deadline', '>', today]);
+                // Convert Sydney time to UTC for date filters (applies to date_deadline for consistency)
+                if (params.date_from) {
+                    domain.push(['date_deadline', '>=', convertDateToUtc(params.date_from, false)]);
                 }
-                // 'done' status would require checking activity state
-            }
-            // Get total count
-            const total = await client.searchCount('mail.activity', domain);
-            // Resolve fields from preset or custom array
-            const fields = resolveFields(params.fields, 'activity', 'basic');
-            // Fetch activities
-            const activities = await client.searchRead('mail.activity', domain, fields, {
-                offset: params.offset,
-                limit: params.limit,
-                order: 'date_deadline asc'
+                if (params.date_to) {
+                    domain.push(['date_deadline', '<=', convertDateToUtc(params.date_to, true)]);
+                }
+                // Activity type filter
+                if (params.activity_type !== 'all') {
+                    domain.push(['activity_type_id.name', 'ilike', params.activity_type]);
+                }
+                // Status filter
+                if (params.status !== 'all') {
+                    if (params.status === 'overdue') {
+                        domain.push(['date_deadline', '<', today]);
+                    }
+                    else if (params.status === 'today') {
+                        domain.push(['date_deadline', '=', today]);
+                    }
+                    else if (params.status === 'upcoming') {
+                        domain.push(['date_deadline', '>', today]);
+                    }
+                    // 'done' status would require checking activity state
+                }
+                // Get total count
+                const total = await client.searchCount('mail.activity', domain);
+                // Resolve fields from preset or custom array
+                const fields = resolveFields(params.fields, 'activity', 'basic');
+                // Fetch activities
+                const activities = await client.searchRead('mail.activity', domain, fields, {
+                    offset: params.offset,
+                    limit: params.limit,
+                    order: 'date_deadline asc'
+                });
+                // Calculate status for each activity
+                for (const activity of activities) {
+                    if (activity.date_deadline) {
+                        if (activity.date_deadline < today) {
+                            activity.activity_status = 'overdue';
+                        }
+                        else if (activity.date_deadline === today) {
+                            activity.activity_status = 'today';
+                        }
+                        else {
+                            activity.activity_status = 'upcoming';
+                        }
+                    }
+                }
+                const response = {
+                    total,
+                    count: activities.length,
+                    offset: params.offset,
+                    limit: params.limit,
+                    items: activities,
+                    has_more: total > params.offset + activities.length,
+                    next_offset: total > params.offset + activities.length ? params.offset + activities.length : undefined
+                };
+                const output = formatActivityList(response, params.response_format);
+                return {
+                    content: [{ type: 'text', text: output }],
+                    structuredContent: response
+                };
             });
-            // Calculate status for each activity
-            for (const activity of activities) {
-                if (activity.date_deadline) {
-                    if (activity.date_deadline < today) {
-                        activity.activity_status = 'overdue';
-                    }
-                    else if (activity.date_deadline === today) {
-                        activity.activity_status = 'today';
-                    }
-                    else {
-                        activity.activity_status = 'upcoming';
-                    }
-                }
-            }
-            const response = {
-                total,
-                count: activities.length,
-                offset: params.offset,
-                limit: params.limit,
-                items: activities,
-                has_more: total > params.offset + activities.length,
-                next_offset: total > params.offset + activities.length ? params.offset + activities.length : undefined
-            };
-            const output = formatActivityList(response, params.response_format);
-            return {
-                content: [{ type: 'text', text: output }],
-                structuredContent: response
-            };
         }
         catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';

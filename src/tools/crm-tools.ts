@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getOdooClient } from '../services/odoo-client.js';
-import { getPoolMetrics } from '../services/odoo-pool.js';
+import { getPoolMetrics, useClient } from '../services/odoo-pool.js';
 import {
   formatLeadList,
   formatLeadDetail,
@@ -124,10 +124,9 @@ Returns paginated list with: name, contact, email, stage, revenue, probability`,
     },
     async (params: LeadSearchInput) => {
       try {
-        const client = getOdooClient();
-        
-        // Build domain filter
-        const domain: unknown[] = [];
+        return await useClient(async (client) => {
+          // Build domain filter
+          const domain: unknown[] = [];
         
         if (params.active_only) {
           domain.push(['active', '=', true]);
@@ -259,11 +258,11 @@ Returns paginated list with: name, contact, email, stage, revenue, probability`,
         
         const output = formatLeadList(response, params.response_format);
         
-        return {
-          content: [{ type: 'text', text: output }],
-          structuredContent: response
-        };
-        
+          return {
+            content: [{ type: 'text', text: output }],
+            structuredContent: response
+          };
+        });
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         return {
@@ -301,38 +300,37 @@ Returns all available fields for the lead including description/notes.`,
     },
     async (params: LeadDetailInput) => {
       try {
-        const client = getOdooClient();
+        return await useClient(async (client) => {
+          // Resolve fields from preset or custom array (default: full for detail views)
+          const fields = resolveFields(params.fields, 'lead', 'full');
 
-        // Resolve fields from preset or custom array (default: full for detail views)
-        const fields = resolveFields(params.fields, 'lead', 'full');
+          const leads = await client.read<CrmLead>(
+            'crm.lead',
+            [params.lead_id],
+            fields
+          );
 
-        const leads = await client.read<CrmLead>(
-          'crm.lead',
-          [params.lead_id],
-          fields
-        );
-        
-        if (leads.length === 0) {
+          if (leads.length === 0) {
+            return {
+              isError: true,
+              content: [{ type: 'text', text: `Lead with ID ${params.lead_id} not found.` }]
+            };
+          }
+
+          const lead = leads[0];
+
+          if (params.response_format === ResponseFormat.JSON) {
+            return {
+              content: [{ type: 'text', text: JSON.stringify(lead, null, 2) }],
+              structuredContent: lead
+            };
+          }
+
           return {
-            isError: true,
-            content: [{ type: 'text', text: `Lead with ID ${params.lead_id} not found.` }]
-          };
-        }
-        
-        const lead = leads[0];
-        
-        if (params.response_format === ResponseFormat.JSON) {
-          return {
-            content: [{ type: 'text', text: JSON.stringify(lead, null, 2) }],
+            content: [{ type: 'text', text: formatLeadDetail(lead) }],
             structuredContent: lead
           };
-        }
-        
-        return {
-          content: [{ type: 'text', text: formatLeadDetail(lead) }],
-          structuredContent: lead
-        };
-        
+        });
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         return {
@@ -633,12 +631,11 @@ Returns: name, email, phone, city, country`,
     },
     async (params: ContactSearchInput) => {
       try {
-        const client = getOdooClient();
-        
-        // Build domain
-        const domain: unknown[] = [];
-        
-        if (params.query) {
+        return await useClient(async (client) => {
+          // Build domain
+          const domain: unknown[] = [];
+
+          if (params.query) {
           // OR search across name, email, and phone using Polish notation
           domain.push(
             '|',
@@ -712,13 +709,13 @@ Returns: name, email, phone, city, country`,
           next_offset: total > params.offset + contacts.length ? params.offset + contacts.length : undefined
         };
         
-        const output = formatContactList(response, params.response_format);
-        
-        return {
-          content: [{ type: 'text', text: output }],
-          structuredContent: response
-        };
-        
+          const output = formatContactList(response, params.response_format);
+
+          return {
+            content: [{ type: 'text', text: output }],
+            structuredContent: response
+          };
+        });
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         return {
@@ -1364,25 +1361,24 @@ Returns a paginated list of lost opportunities with details including the lost r
     },
     async (params: LostOpportunitiesSearchInput) => {
       try {
-        const client = getOdooClient();
+        return await useClient(async (client) => {
+          // Build domain for lost opportunities
+          // Lost = active=False AND probability=0 (archived opportunities with 0% probability)
+          const domain: unknown[] = [
+            ['type', '=', 'opportunity'],
+            ['active', '=', false],
+            ['probability', '=', 0]
+          ];
 
-        // Build domain for lost opportunities
-        // Lost = active=False AND probability=0 (archived opportunities with 0% probability)
-        const domain: unknown[] = [
-          ['type', '=', 'opportunity'],
-          ['active', '=', false],
-          ['probability', '=', 0]
-        ];
+          // Default to last 90 days if no date filter specified (prevents timeout on large datasets)
+          // Use getDaysAgoUtc to get Sydney-timezone-aware 90 days ago converted to UTC
+          if (!params.date_from && !params.date_to) {
+            domain.push(['date_closed', '>=', getDaysAgoUtc(90, false)]);
+          }
 
-        // Default to last 90 days if no date filter specified (prevents timeout on large datasets)
-        // Use getDaysAgoUtc to get Sydney-timezone-aware 90 days ago converted to UTC
-        if (!params.date_from && !params.date_to) {
-          domain.push(['date_closed', '>=', getDaysAgoUtc(90, false)]);
-        }
-
-        // Apply search filters
-        if (params.query) {
-          domain.push(
+          // Apply search filters
+          if (params.query) {
+            domain.push(
             '|',
             '|',
             ['name', 'ilike', params.query],
@@ -1486,11 +1482,11 @@ Returns a paginated list of lost opportunities with details including the lost r
 
         const output = formatLostOpportunitiesList(response, params.response_format);
 
-        return {
-          content: [{ type: 'text', text: output }],
-          structuredContent: response
-        };
-
+          return {
+            content: [{ type: 'text', text: output }],
+            structuredContent: response
+          };
+        });
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         return {
@@ -1785,15 +1781,14 @@ Returns a paginated list of won opportunities with details including revenue, sa
     },
     async (params: WonOpportunitiesSearchInput) => {
       try {
-        const client = getOdooClient();
+        return await useClient(async (client) => {
+          // Build domain for won opportunities (probability = 100 or stage is_won = true)
+          const domain: unknown[] = [
+            ['type', '=', 'opportunity'],
+            ['probability', '=', 100]
+          ];
 
-        // Build domain for won opportunities (probability = 100 or stage is_won = true)
-        const domain: unknown[] = [
-          ['type', '=', 'opportunity'],
-          ['probability', '=', 100]
-        ];
-
-        // Apply search filters
+          // Apply search filters
         if (params.query) {
           domain.push(
             '|',
@@ -1891,11 +1886,11 @@ Returns a paginated list of won opportunities with details including revenue, sa
 
         const output = formatWonOpportunitiesList(response, params.response_format);
 
-        return {
-          content: [{ type: 'text', text: output }],
-          structuredContent: response
-        };
-
+          return {
+            content: [{ type: 'text', text: output }],
+            structuredContent: response
+          };
+        });
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         return {
@@ -2854,12 +2849,11 @@ Returns a paginated list of activities with details including type, due date, st
     },
     async (params: ActivitySearchInput) => {
       try {
-        const client = getOdooClient();
+        return await useClient(async (client) => {
+          const today = new Date().toISOString().split('T')[0];
 
-        const today = new Date().toISOString().split('T')[0];
-
-        // Build domain
-        const domain: unknown[] = [['res_model', '=', 'crm.lead']];
+          // Build domain
+          const domain: unknown[] = [['res_model', '=', 'crm.lead']];
 
         if (params.user_id) {
           domain.push(['user_id', '=', params.user_id]);
@@ -2938,11 +2932,11 @@ Returns a paginated list of activities with details including type, due date, st
 
         const output = formatActivityList(response, params.response_format);
 
-        return {
-          content: [{ type: 'text', text: output }],
-          structuredContent: response
-        };
-
+          return {
+            content: [{ type: 'text', text: output }],
+            structuredContent: response
+          };
+        });
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         return {

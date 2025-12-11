@@ -33,6 +33,23 @@ export declare function formatLeadListItemExtended(lead: CrmLead): string;
 export declare function formatStatesList(states: StateWithStats[], countryCode: string, format: ResponseFormat): string;
 export declare function formatStateComparison(comparison: StateComparison, format: ResponseFormat): string;
 /**
+ * Format any array of records as CSV.
+ * Handles special cases like Odoo relation fields [id, name] and arrays.
+ *
+ * @param records - Array of objects to format
+ * @param fields - Optional field order (uses object keys if not specified)
+ * @returns CSV string with header row
+ *
+ * @example
+ * // Basic usage
+ * formatRecordsAsCSV(leads)
+ *
+ * @example
+ * // With specific field order
+ * formatRecordsAsCSV(leads, ['id', 'name', 'email_from', 'expected_revenue'])
+ */
+export declare function formatRecordsAsCSV<T extends Record<string, unknown>>(records: T[], fields?: string[]): string;
+/**
  * Information about a single Odoo field.
  * Used by the list_fields discovery tool.
  */
