@@ -304,3 +304,93 @@ export const POOL_CONFIG = {
   // Use FIFO (queue) for client allocation - ensures fair distribution
   FIFO: true,
 } as const;
+
+// =============================================================================
+// VECTOR DATABASE CONFIGURATION (Qdrant + Voyage AI)
+// =============================================================================
+
+/**
+ * Qdrant vector database configuration
+ */
+export const QDRANT_CONFIG = {
+  // Connection settings
+  HOST: process.env.QDRANT_HOST || 'http://localhost:6333',
+  API_KEY: process.env.QDRANT_API_KEY || '',
+  COLLECTION_NAME: process.env.QDRANT_COLLECTION || 'odoo_crm_leads',
+
+  // Vector settings
+  VECTOR_SIZE: parseInt(process.env.EMBEDDING_DIMENSIONS || '1024'),
+  DISTANCE_METRIC: 'Cosine' as const,
+
+  // HNSW index settings (create BEFORE data upload)
+  HNSW_M: 16,                    // Number of bi-directional links
+  HNSW_EF_CONSTRUCT: 100,        // Size of dynamic candidate list
+
+  // Payload indexes to create
+  PAYLOAD_INDEXES: [
+    { field: 'stage_id', type: 'integer' as const },
+    { field: 'user_id', type: 'integer' as const },
+    { field: 'team_id', type: 'integer' as const },
+    { field: 'expected_revenue', type: 'float' as const },
+    { field: 'is_won', type: 'bool' as const },
+    { field: 'is_lost', type: 'bool' as const },
+    { field: 'is_active', type: 'bool' as const },
+    { field: 'create_date', type: 'datetime' as const },
+    { field: 'sector', type: 'keyword' as const },
+    { field: 'lost_reason_id', type: 'integer' as const },
+  ],
+
+  // Enabled flag
+  ENABLED: process.env.VECTOR_ENABLED !== 'false',
+} as const;
+
+/**
+ * Voyage AI embedding configuration
+ */
+export const VOYAGE_CONFIG = {
+  API_KEY: process.env.VOYAGE_API_KEY || '',
+  MODEL: process.env.EMBEDDING_MODEL || 'voyage-3-lite',
+  DIMENSIONS: parseInt(process.env.EMBEDDING_DIMENSIONS || '1024'),
+
+  // Input types (improves retrieval quality)
+  INPUT_TYPE_DOCUMENT: 'document' as const,
+  INPUT_TYPE_QUERY: 'query' as const,
+
+  // Batch settings
+  MAX_BATCH_SIZE: 128,
+  MAX_TOKENS_PER_BATCH: 120000,
+
+  // Text handling
+  MAX_WORDS: 2000,               // Truncate descriptions longer than this
+  TRUNCATION: true,
+} as const;
+
+/**
+ * Sync service configuration
+ */
+export const VECTOR_SYNC_CONFIG = {
+  ENABLED: process.env.VECTOR_SYNC_ENABLED !== 'false',
+  INTERVAL_MS: parseInt(process.env.VECTOR_SYNC_INTERVAL_MS || '900000'), // 15 min
+  BATCH_SIZE: parseInt(process.env.VECTOR_SYNC_BATCH_SIZE || '200'),
+  MAX_RECORDS_PER_SYNC: 10000,
+} as const;
+
+/**
+ * Similarity score thresholds
+ * Research shows 0.5 is too low - use 0.6 as default
+ */
+export const SIMILARITY_THRESHOLDS = {
+  VERY_SIMILAR: 0.8,             // Near duplicate
+  MEANINGFULLY_SIMILAR: 0.6,     // Good match (default min)
+  LOOSELY_RELATED: 0.4,          // Weak match
+  DEFAULT_MIN: 0.6,              // Default minimum score
+} as const;
+
+/**
+ * Circuit breaker for vector services
+ */
+export const VECTOR_CIRCUIT_BREAKER_CONFIG = {
+  FAILURE_THRESHOLD: 3,          // Open after 3 failures
+  RESET_TIMEOUT_MS: 30000,       // Try again after 30s
+  HALF_OPEN_MAX_ATTEMPTS: 1,
+} as const;

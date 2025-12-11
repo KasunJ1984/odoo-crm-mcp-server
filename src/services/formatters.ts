@@ -1,5 +1,5 @@
 import { CONTEXT_LIMITS, ResponseFormat, CRM_FIELDS, FIELD_PRESETS } from '../constants.js';
-import type { CrmLead, PaginatedResponse, PipelineSummary, SalesAnalytics, ActivitySummary, ResPartner, LostReasonWithCount, LostAnalysisSummary, LostOpportunity, LostTrendsSummary, WonOpportunity, WonAnalysisSummary, WonTrendsSummary, SalespersonWithStats, SalesTeamWithStats, PerformanceComparison, ActivityDetail, ExportResult, PipelineSummaryWithWeighted, StateWithStats, StateComparison } from '../types.js';
+import type { CrmLead, PaginatedResponse, PipelineSummary, SalesAnalytics, ActivitySummary, ResPartner, LostReasonWithCount, LostAnalysisSummary, LostOpportunity, LostTrendsSummary, WonOpportunity, WonAnalysisSummary, WonTrendsSummary, SalespersonWithStats, SalesTeamWithStats, PerformanceComparison, ActivityDetail, ExportResult, PipelineSummaryWithWeighted, StateWithStats, StateComparison, VectorMatch, VectorMetadata, PatternDiscoveryResult, SyncResult, VectorStatus } from '../types.js';
 import { stripHtml, getContactName } from '../utils/html-utils.js';
 import { formatLinkedName } from '../utils/odoo-urls.js';
 
@@ -1276,4 +1276,413 @@ export function formatFieldsList(
   }
 
   return output;
+}
+
+// =============================================================================
+// VECTOR SEARCH FORMATTERS - For semantic search and pattern discovery tools
+// =============================================================================
+
+/**
+ * Format semantic search results.
+ * Shows opportunities ranked by semantic similarity to the query.
+ *
+ * @param matches - Vector search matches with scores
+ * @param leads - Full CRM lead data from Odoo
+ * @param query - Original search query
+ * @param format - Output format (markdown or json)
+ * @returns Formatted string
+ */
+export function formatSemanticSearchResults(
+  matches: VectorMatch[],
+  leads: CrmLead[],
+  query: string,
+  format: ResponseFormat
+): string {
+  // Build a map of lead ID to lead data for fast lookup
+  const leadMap = new Map<number, CrmLead>();
+  for (const lead of leads) {
+    leadMap.set(lead.id, lead);
+  }
+
+  // JSON format - return structured data
+  if (format === ResponseFormat.JSON) {
+    const results = matches.map(match => {
+      const lead = leadMap.get(parseInt(match.id));
+      return {
+        id: parseInt(match.id),
+        name: lead?.name || match.metadata?.name || 'Unknown',
+        similarity_score: Math.round(match.score * 100),
+        stage: getRelationName(lead?.stage_id),
+        expected_revenue: lead?.expected_revenue || 0,
+        probability: lead?.probability || 0,
+        salesperson: getRelationName(lead?.user_id),
+        team: getRelationName(lead?.team_id),
+        sector: lead?.sector || match.metadata?.sector || null,
+        city: lead?.city || match.metadata?.city || null,
+        state: getRelationName(lead?.state_id),
+        is_won: match.metadata?.is_won || false,
+        is_lost: match.metadata?.is_lost || false,
+      };
+    });
+
+    return JSON.stringify({
+      query,
+      result_count: matches.length,
+      results,
+    }, null, 2);
+  }
+
+  // Markdown format - human-readable
+  let output = `## Semantic Search Results\n\n`;
+  output += `**Query:** "${query}"\n`;
+  output += `**Matches:** ${matches.length}\n\n`;
+
+  if (matches.length === 0) {
+    output += '_No matching opportunities found._\n';
+    return output;
+  }
+
+  for (let i = 0; i < matches.length; i++) {
+    const match = matches[i];
+    const lead = leadMap.get(parseInt(match.id));
+    const similarity = Math.round(match.score * 100);
+
+    // Similarity indicator (visual bar)
+    const similarityBar = similarity >= 80 ? '🟢' : similarity >= 60 ? '🟡' : '🟠';
+
+    output += `### ${i + 1}. ${formatLinkedName(parseInt(match.id), lead?.name || match.metadata?.name || 'Unknown', 'crm.lead')}\n`;
+    output += `${similarityBar} **${similarity}% match** | ID: ${match.id}\n\n`;
+
+    if (lead) {
+      // Status badges
+      const statusBadges: string[] = [];
+      if (match.metadata?.is_won) statusBadges.push('✅ Won');
+      if (match.metadata?.is_lost) statusBadges.push('❌ Lost');
+      if (!match.metadata?.is_won && !match.metadata?.is_lost) statusBadges.push('🔵 Active');
+
+      output += `- **Status:** ${statusBadges.join(' ')}\n`;
+      output += `- **Stage:** ${getRelationName(lead.stage_id)} | **Revenue:** ${formatCurrency(lead.expected_revenue)} | **Prob:** ${formatPercent(lead.probability)}\n`;
+      output += `- **Contact:** ${getContactName(lead)} | ${lead.email_from || '-'}\n`;
+      output += `- **Salesperson:** ${getRelationName(lead.user_id)} | **Team:** ${getRelationName(lead.team_id)}\n`;
+
+      const location = [lead.city, getRelationName(lead.state_id)].filter(x => x && x !== '-').join(', ');
+      if (location) {
+        output += `- **Location:** ${location}\n`;
+      }
+
+      if (lead.sector) {
+        output += `- **Sector:** ${lead.sector}\n`;
+      }
+    } else if (match.metadata) {
+      // Fallback to metadata if lead not found
+      output += `- **Stage:** ${match.metadata.stage_name || '-'}\n`;
+      output += `- **Revenue:** ${formatCurrency(match.metadata.expected_revenue)}\n`;
+      output += `- **Sector:** ${match.metadata.sector || '-'}\n`;
+    }
+
+    output += '\n';
+  }
+
+  return output;
+}
+
+/**
+ * Format similar deals results.
+ * Shows opportunities similar to a reference deal.
+ *
+ * @param matches - Vector search matches with scores
+ * @param leads - Full CRM lead data from Odoo
+ * @param reference - Reference deal metadata
+ * @param format - Output format (markdown or json)
+ * @returns Formatted string
+ */
+export function formatSimilarDeals(
+  matches: VectorMatch[],
+  leads: CrmLead[],
+  reference: VectorMetadata,
+  format: ResponseFormat
+): string {
+  // Build a map of lead ID to lead data for fast lookup
+  const leadMap = new Map<number, CrmLead>();
+  for (const lead of leads) {
+    leadMap.set(lead.id, lead);
+  }
+
+  // JSON format
+  if (format === ResponseFormat.JSON) {
+    const results = matches.map(match => {
+      const lead = leadMap.get(parseInt(match.id));
+      return {
+        id: parseInt(match.id),
+        name: lead?.name || match.metadata?.name || 'Unknown',
+        similarity_score: Math.round(match.score * 100),
+        stage: getRelationName(lead?.stage_id),
+        expected_revenue: lead?.expected_revenue || 0,
+        outcome: match.metadata?.is_won ? 'won' : match.metadata?.is_lost ? 'lost' : 'active',
+        salesperson: getRelationName(lead?.user_id),
+        sector: lead?.sector || match.metadata?.sector || null,
+      };
+    });
+
+    return JSON.stringify({
+      reference_deal: {
+        id: reference.odoo_id,
+        name: reference.name,
+        stage: reference.stage_name,
+        revenue: reference.expected_revenue,
+        outcome: reference.is_won ? 'won' : reference.is_lost ? 'lost' : 'active',
+      },
+      similar_deals_count: matches.length,
+      similar_deals: results,
+    }, null, 2);
+  }
+
+  // Markdown format
+  let output = `## Similar Deals\n\n`;
+  output += `### Reference Deal\n`;
+  output += `- **${formatLinkedName(reference.odoo_id, reference.name, 'crm.lead')}** (ID: ${reference.odoo_id})\n`;
+  output += `- Stage: ${reference.stage_name} | Revenue: ${formatCurrency(reference.expected_revenue)}\n`;
+
+  const refStatus = reference.is_won ? '✅ Won' : reference.is_lost ? '❌ Lost' : '🔵 Active';
+  output += `- Status: ${refStatus}\n\n`;
+
+  output += `### Similar Opportunities (${matches.length})\n\n`;
+
+  if (matches.length === 0) {
+    output += '_No similar deals found._\n';
+    return output;
+  }
+
+  // Group by outcome for better presentation
+  const won = matches.filter(m => m.metadata?.is_won);
+  const lost = matches.filter(m => m.metadata?.is_lost);
+  const active = matches.filter(m => !m.metadata?.is_won && !m.metadata?.is_lost);
+
+  const formatDealGroup = (deals: VectorMatch[], title: string, emoji: string): string => {
+    if (deals.length === 0) return '';
+
+    let groupOutput = `#### ${emoji} ${title} (${deals.length})\n\n`;
+
+    for (const match of deals) {
+      const lead = leadMap.get(parseInt(match.id));
+      const similarity = Math.round(match.score * 100);
+
+      groupOutput += `- **${formatLinkedName(parseInt(match.id), lead?.name || match.metadata?.name || 'Unknown', 'crm.lead')}** - ${similarity}% similar\n`;
+      groupOutput += `  Revenue: ${formatCurrency(lead?.expected_revenue || match.metadata?.expected_revenue)} | ${getRelationName(lead?.stage_id) || match.metadata?.stage_name || '-'}\n`;
+
+      if (lead?.sector || match.metadata?.sector) {
+        groupOutput += `  Sector: ${lead?.sector || match.metadata?.sector}\n`;
+      }
+    }
+    groupOutput += '\n';
+    return groupOutput;
+  };
+
+  output += formatDealGroup(won, 'Won Deals', '✅');
+  output += formatDealGroup(lost, 'Lost Deals', '❌');
+  output += formatDealGroup(active, 'Active Deals', '🔵');
+
+  return output;
+}
+
+/**
+ * Format pattern discovery results.
+ * Shows clusters of similar opportunities with themes.
+ *
+ * @param result - Pattern discovery result with clusters
+ * @param format - Output format (markdown or json)
+ * @returns Formatted string
+ */
+export function formatPatternDiscovery(
+  result: PatternDiscoveryResult,
+  format: ResponseFormat
+): string {
+  // JSON format
+  if (format === ResponseFormat.JSON) {
+    return JSON.stringify(result, null, 2);
+  }
+
+  // Markdown format
+  let output = `## Pattern Discovery Results\n\n`;
+  output += `**Analysis Type:** ${result.analysisType.replace(/_/g, ' ')}\n`;
+  output += `**Records Analyzed:** ${result.totalRecordsAnalyzed.toLocaleString()}\n`;
+  output += `**Clusters Found:** ${result.numClusters}\n`;
+  output += `**Analysis Time:** ${(result.durationMs / 1000).toFixed(1)}s\n\n`;
+
+  if (result.clusters.length === 0) {
+    output += '_Not enough data for pattern analysis._\n';
+    return output;
+  }
+
+  // Insights section
+  if (result.insights && result.insights.length > 0) {
+    output += `### Key Insights\n\n`;
+    for (const insight of result.insights) {
+      output += `💡 ${insight}\n`;
+    }
+    output += '\n';
+  }
+
+  // Cluster details
+  output += `### Cluster Details\n\n`;
+
+  for (const cluster of result.clusters) {
+    const sizePercent = Math.round((cluster.size / result.totalRecordsAnalyzed) * 100);
+
+    output += `#### Cluster ${cluster.clusterId + 1}: ${cluster.size} opportunities (${sizePercent}%)\n\n`;
+    output += `**Summary:** ${cluster.summary}\n\n`;
+
+    // Top sectors
+    if (cluster.commonThemes.topSectors.length > 0) {
+      output += `**Top Sectors:**\n`;
+      for (const sector of cluster.commonThemes.topSectors) {
+        output += `- ${sector.sector}: ${sector.count} deals\n`;
+      }
+      output += '\n';
+    }
+
+    // Lost reasons (if applicable)
+    if (cluster.commonThemes.topLostReasons.length > 0) {
+      output += `**Top Lost Reasons:**\n`;
+      for (const reason of cluster.commonThemes.topLostReasons) {
+        output += `- ${reason.reason}: ${reason.count} deals\n`;
+      }
+      output += '\n';
+    }
+
+    // Revenue stats
+    if (cluster.commonThemes.avgRevenue > 0) {
+      output += `**Revenue:** Avg ${formatCurrency(cluster.commonThemes.avgRevenue)}`;
+      if (cluster.commonThemes.revenueRange) {
+        output += ` (${formatCurrency(cluster.commonThemes.revenueRange.min)} - ${formatCurrency(cluster.commonThemes.revenueRange.max)})`;
+      }
+      output += '\n\n';
+    }
+
+    // Representative deals
+    if (cluster.representativeDeals.length > 0) {
+      output += `**Representative Deals:**\n`;
+      for (const deal of cluster.representativeDeals) {
+        const similarity = Math.round(deal.similarity * 100);
+        output += `- ${formatLinkedName(deal.id, deal.name, 'crm.lead')} (${similarity}% to center)\n`;
+      }
+      output += '\n';
+    }
+
+    output += '---\n\n';
+  }
+
+  return output;
+}
+
+/**
+ * Format sync result.
+ * Shows the outcome of a vector sync operation.
+ *
+ * @param result - Sync operation result
+ * @returns Formatted string
+ */
+export function formatSyncResult(result: SyncResult): string {
+  let output = `## Sync Result\n\n`;
+
+  const statusEmoji = result.success ? '✅' : '❌';
+  output += `**Status:** ${statusEmoji} ${result.success ? 'Success' : 'Failed'}\n`;
+  output += `**Duration:** ${(result.durationMs / 1000).toFixed(1)}s\n`;
+  output += `**Sync Version:** ${result.syncVersion}\n\n`;
+
+  output += `### Summary\n`;
+  output += `| Metric | Count |\n`;
+  output += `|--------|-------|\n`;
+  output += `| Records Synced | ${result.recordsSynced.toLocaleString()} |\n`;
+  output += `| Records Failed | ${result.recordsFailed.toLocaleString()} |\n`;
+  output += `| Records Deleted | ${result.recordsDeleted.toLocaleString()} |\n`;
+
+  if (result.errors && result.errors.length > 0) {
+    output += `\n### Errors\n`;
+    for (const error of result.errors.slice(0, 5)) {
+      output += `- ${error}\n`;
+    }
+    if (result.errors.length > 5) {
+      output += `- _...and ${result.errors.length - 5} more errors_\n`;
+    }
+  }
+
+  return output;
+}
+
+/**
+ * Format vector status.
+ * Shows the health and state of the vector infrastructure.
+ *
+ * @param status - Vector system status
+ * @returns Formatted string
+ */
+export function formatVectorStatus(status: VectorStatus): string {
+  let output = `## Vector Infrastructure Status\n\n`;
+
+  // Overall status
+  const allGreen = status.enabled && status.qdrantConnected && status.voyageConnected;
+  const statusEmoji = allGreen ? '🟢' : status.enabled ? '🟡' : '🔴';
+  output += `**Overall:** ${statusEmoji} ${allGreen ? 'Healthy' : status.enabled ? 'Degraded' : 'Disabled'}\n\n`;
+
+  // Service status table
+  output += `### Service Status\n\n`;
+  output += `| Service | Status |\n`;
+  output += `|---------|--------|\n`;
+  output += `| Vector Features | ${status.enabled ? '✅ Enabled' : '❌ Disabled'} |\n`;
+  output += `| Qdrant (Vector DB) | ${status.qdrantConnected ? '✅ Connected' : '❌ Disconnected'} |\n`;
+  output += `| Voyage AI (Embeddings) | ${status.voyageConnected ? '✅ Available' : '❌ Unavailable'} |\n`;
+  output += `| Circuit Breaker | ${formatCircuitBreakerState(status.circuitBreakerState)} |\n`;
+
+  // Collection info
+  output += `\n### Collection Info\n\n`;
+  output += `- **Collection:** ${status.collectionName || '-'}\n`;
+  output += `- **Total Vectors:** ${status.totalVectors.toLocaleString()}\n`;
+
+  // Sync status
+  output += `\n### Sync Status\n\n`;
+  output += `- **Last Sync:** ${status.lastSync ? formatDate(status.lastSync) : 'Never'}\n`;
+  output += `- **Sync Version:** ${status.syncVersion}\n`;
+
+  // Error info
+  if (status.errorMessage) {
+    output += `\n### ⚠️ Error\n\n`;
+    output += `${status.errorMessage}\n`;
+  }
+
+  // Recommendations
+  output += `\n### Recommendations\n\n`;
+  if (!status.enabled) {
+    output += `- Set \`VECTOR_ENABLED=true\` to enable vector features\n`;
+  }
+  if (!status.qdrantConnected) {
+    output += `- Check Qdrant connection at \`QDRANT_HOST\`\n`;
+  }
+  if (!status.voyageConnected) {
+    output += `- Verify \`VOYAGE_API_KEY\` is set correctly\n`;
+  }
+  if (status.totalVectors === 0 && status.qdrantConnected) {
+    output += `- Run \`odoo_crm_sync_embeddings\` with action="full_rebuild" to generate embeddings\n`;
+  }
+  if (allGreen && status.totalVectors > 0) {
+    output += `- All systems operational. You can use semantic search tools.\n`;
+  }
+
+  return output;
+}
+
+/**
+ * Format circuit breaker state for display.
+ */
+function formatCircuitBreakerState(state: string): string {
+  switch (state) {
+    case 'CLOSED':
+      return '🟢 Closed (healthy)';
+    case 'OPEN':
+      return '🔴 Open (blocking)';
+    case 'HALF_OPEN':
+      return '🟡 Half-Open (testing)';
+    default:
+      return state;
+  }
 }

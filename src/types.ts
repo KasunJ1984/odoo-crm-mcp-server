@@ -611,3 +611,246 @@ export interface StateComparison {
     overall_win_rate: number;
   };
 }
+
+// ============================================
+// Vector Database Types (for Qdrant + Voyage)
+// ============================================
+
+/**
+ * Configuration for Qdrant vector database connection
+ */
+export interface VectorConfig {
+  host: string;              // QDRANT_HOST - e.g., "http://localhost:6333"
+  apiKey?: string;           // QDRANT_API_KEY - optional for local, required for cloud
+  collectionName: string;    // QDRANT_COLLECTION - e.g., "odoo_crm_leads"
+}
+
+/**
+ * Configuration for Voyage AI embedding service
+ */
+export interface EmbeddingConfig {
+  apiKey: string;            // VOYAGE_API_KEY
+  model: string;             // EMBEDDING_MODEL - "voyage-3-lite"
+  dimensions: number;        // EMBEDDING_DIMENSIONS - 1024
+}
+
+/**
+ * Metadata stored with each vector in Qdrant.
+ * These fields enable filtering and are returned with search results.
+ */
+export interface VectorMetadata {
+  // Core identifiers
+  odoo_id: number;           // Original Odoo record ID
+  name: string;              // Opportunity name
+
+  // Stage and pipeline
+  stage_id: number;
+  stage_name: string;
+
+  // Assignment
+  user_id: number;
+  user_name: string;
+  team_id?: number;
+  team_name?: string;
+
+  // Business metrics
+  expected_revenue: number;
+  probability: number;
+
+  // Status flags (for filtering)
+  is_won: boolean;
+  is_lost: boolean;
+  is_active: boolean;
+
+  // Classification
+  sector?: string;
+  specification_id?: number;
+  specification_name?: string;
+  lead_source_id?: number;
+  lead_source_name?: string;
+
+  // Location
+  city?: string;
+  state_id?: number;
+  state_name?: string;
+
+  // Lost analysis
+  lost_reason_id?: number;
+  lost_reason_name?: string;
+
+  // Timestamps
+  create_date: string;
+  write_date: string;        // For sync conflict detection
+  date_closed?: string;
+
+  // Sync tracking
+  sync_version: number;
+  last_synced: string;
+  truncated?: boolean;       // True if description was truncated
+
+  // Original text (for display, not filtering)
+  embedding_text: string;
+}
+
+/**
+ * A single vector record to upsert into Qdrant
+ */
+export interface VectorRecord {
+  id: string;                // String ID (Odoo ID as string)
+  values: number[];          // 1024-dimensional embedding vector
+  metadata: VectorMetadata;
+}
+
+/**
+ * Options for vector similarity search
+ */
+export interface VectorQueryOptions {
+  vector: number[];          // Query embedding
+  topK: number;              // Number of results (1-50)
+  filter?: VectorFilter;     // Optional metadata filters
+  minScore?: number;         // Minimum similarity score (default 0.6)
+  includeMetadata?: boolean; // Include metadata in results (default true)
+}
+
+/**
+ * Filter conditions for Qdrant queries.
+ * Supports exact match, arrays ($in), and ranges.
+ */
+export interface VectorFilter {
+  stage_id?: number | { $in: number[] };
+  user_id?: number | { $in: number[] };
+  team_id?: number;
+  is_won?: boolean;
+  is_lost?: boolean;
+  is_active?: boolean;
+  state_id?: number;
+  sector?: string;
+  lost_reason_id?: number;
+  expected_revenue?: { $gte?: number; $lte?: number };
+  create_date?: { $gte?: string; $lte?: string };
+}
+
+/**
+ * A single match from vector search
+ */
+export interface VectorMatch {
+  id: string;
+  score: number;             // Cosine similarity (0-1)
+  metadata?: VectorMetadata;
+}
+
+/**
+ * Result of a vector search query
+ */
+export interface VectorQueryResult {
+  matches: VectorMatch[];
+  searchTimeMs: number;
+}
+
+/**
+ * Progress tracking during sync operations
+ */
+export interface SyncProgress {
+  phase: 'fetching' | 'embedding' | 'upserting' | 'deleting';
+  currentBatch: number;
+  totalBatches: number;
+  recordsProcessed: number;
+  totalRecords: number;
+  percentComplete: number;
+  elapsedMs: number;
+  estimatedRemainingMs?: number;
+}
+
+/**
+ * Result of a sync operation
+ */
+export interface SyncResult {
+  success: boolean;
+  recordsSynced: number;
+  recordsFailed: number;
+  recordsDeleted: number;
+  durationMs: number;
+  syncVersion: number;
+  errors?: string[];
+}
+
+/**
+ * Current status of vector infrastructure
+ */
+export interface VectorStatus {
+  enabled: boolean;
+  qdrantConnected: boolean;
+  voyageConnected: boolean;
+  collectionName: string;
+  totalVectors: number;
+  lastSync: string | null;
+  syncVersion: number;
+  circuitBreakerState: 'CLOSED' | 'OPEN' | 'HALF_OPEN';
+  errorMessage?: string;
+}
+
+/**
+ * A semantic search result with enriched lead data
+ */
+export interface SemanticMatch {
+  lead: CrmLead;             // Full Odoo lead record
+  similarityScore: number;   // Raw cosine similarity (0-1)
+  similarityPercent: number; // Human-readable percentage
+  matchExplanation: string;  // e.g., "92% match - Very similar"
+}
+
+/**
+ * Complete result of semantic search
+ */
+export interface SemanticSearchResult {
+  items: SemanticMatch[];
+  total: number;
+  queryEmbeddingMs: number;
+  vectorSearchMs: number;
+  odooEnrichmentMs: number;
+  searchMode: 'semantic' | 'hybrid';
+}
+
+/**
+ * A cluster of similar opportunities (for pattern discovery)
+ */
+export interface PatternCluster {
+  clusterId: number;
+  size: number;
+  centroidDistance: number;  // Average distance to centroid
+  representativeDeals: Array<{
+    id: number;
+    name: string;
+    similarity: number;
+  }>;
+  commonThemes: {
+    topSectors: Array<{ sector: string; count: number }>;
+    topLostReasons: Array<{ reason: string; count: number }>;
+    avgRevenue: number;
+    revenueRange: { min: number; max: number };
+  };
+  summary: string;           // AI-generated cluster description
+}
+
+/**
+ * Result of pattern discovery analysis
+ */
+export interface PatternDiscoveryResult {
+  analysisType: 'lost_reasons' | 'winning_factors' | 'deal_segments' | 'objection_themes';
+  totalRecordsAnalyzed: number;
+  numClusters: number;
+  clusters: PatternCluster[];
+  insights: string[];        // Key insights across all clusters
+  durationMs: number;
+}
+
+/**
+ * Circuit breaker state for resilience
+ */
+export interface CircuitBreakerState {
+  state: 'CLOSED' | 'OPEN' | 'HALF_OPEN';
+  failures: number;
+  lastFailure: number | null;
+  lastStateChange: number;
+  secondsUntilRetry?: number;
+}

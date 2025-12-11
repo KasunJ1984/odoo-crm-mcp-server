@@ -756,4 +756,117 @@ export const HealthCheckSchema = z.object({
         .default(ResponseFormat.MARKDOWN)
         .describe("Output format: 'markdown' or 'json'")
 }).strict();
+// =============================================================================
+// VECTOR TOOL SCHEMAS
+// =============================================================================
+import { SIMILARITY_THRESHOLDS } from '../constants.js';
+/**
+ * Schema for semantic search tool.
+ */
+export const SemanticSearchSchema = z.object({
+    query: z.string()
+        .min(10, 'Query must be at least 10 characters')
+        .max(500, 'Query too long (max 500 characters)')
+        .describe("Natural language search query. Examples: 'education projects similar to university jobs', 'large commercial HVAC projects we lost to competitors'"),
+    limit: z.number()
+        .int()
+        .min(1)
+        .max(50)
+        .default(10)
+        .describe('Number of results to return'),
+    min_similarity: z.number()
+        .min(0)
+        .max(1)
+        .default(SIMILARITY_THRESHOLDS.DEFAULT_MIN)
+        .describe('Minimum similarity score (0-1). Default 0.6 = meaningfully similar'),
+    // Filters
+    stage_id: z.number().int().positive().optional()
+        .describe('Filter by pipeline stage ID'),
+    user_id: z.number().int().positive().optional()
+        .describe('Filter by salesperson ID'),
+    team_id: z.number().int().positive().optional()
+        .describe('Filter by sales team ID'),
+    is_won: z.boolean().optional()
+        .describe('Filter for won opportunities only'),
+    is_lost: z.boolean().optional()
+        .describe('Filter for lost opportunities only'),
+    min_revenue: z.number().optional()
+        .describe('Minimum expected revenue'),
+    max_revenue: z.number().optional()
+        .describe('Maximum expected revenue'),
+    state_id: z.number().int().positive().optional()
+        .describe('Filter by Australian state/territory ID'),
+    sector: z.string().optional()
+        .describe('Filter by sector name'),
+    response_format: z.nativeEnum(ResponseFormat).default(ResponseFormat.MARKDOWN)
+        .describe('Output format: markdown, json, or csv'),
+}).strict();
+/**
+ * Schema for find similar deals tool.
+ */
+export const FindSimilarDealsSchema = z.object({
+    lead_id: z.number()
+        .int()
+        .positive()
+        .describe('The Odoo opportunity ID to find similar records for'),
+    limit: z.number()
+        .int()
+        .min(1)
+        .max(20)
+        .default(5)
+        .describe('Number of similar opportunities to return'),
+    include_outcomes: z.array(z.enum(['won', 'lost', 'active']))
+        .default(['won', 'lost', 'active'])
+        .describe('Which outcomes to include in results'),
+    exclude_same_partner: z.boolean()
+        .default(false)
+        .describe('Exclude opportunities from the same partner/company'),
+    response_format: z.nativeEnum(ResponseFormat).default(ResponseFormat.MARKDOWN),
+}).strict();
+/**
+ * Schema for discover patterns tool.
+ */
+export const DiscoverPatternsSchema = z.object({
+    analysis_type: z.enum(['lost_reasons', 'winning_factors', 'deal_segments', 'objection_themes'])
+        .describe('Type of pattern analysis to perform'),
+    num_clusters: z.number()
+        .int()
+        .min(2)
+        .max(10)
+        .default(5)
+        .describe('Number of pattern clusters to identify'),
+    // Filters
+    sector: z.string().optional()
+        .describe('Focus on specific sector'),
+    min_revenue: z.number().optional()
+        .describe('Minimum revenue threshold (e.g., 55000000 for $55M+)'),
+    date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
+        .describe('Start date for analysis (YYYY-MM-DD)'),
+    date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
+        .describe('End date for analysis (YYYY-MM-DD)'),
+    response_format: z.nativeEnum(ResponseFormat).default(ResponseFormat.MARKDOWN),
+}).strict();
+/**
+ * Schema for sync embeddings tool.
+ */
+export const SyncEmbeddingsSchema = z.object({
+    action: z.enum(['status', 'sync_new', 'full_rebuild', 'sync_record'])
+        .describe("'status' checks sync state, 'sync_new' syncs changed records, 'full_rebuild' rebuilds entire index, 'sync_record' syncs specific record"),
+    lead_id: z.number().int().positive().optional()
+        .describe('For sync_record action: the specific lead ID to sync'),
+    batch_size: z.number()
+        .int()
+        .min(10)
+        .max(500)
+        .default(200)
+        .describe('For full_rebuild: records per batch'),
+}).strict();
+/**
+ * Schema for vector status tool.
+ */
+export const VectorStatusSchema = z.object({
+    include_sample: z.boolean()
+        .default(false)
+        .describe('Include a sample vector for debugging'),
+}).strict();
 //# sourceMappingURL=index.js.map

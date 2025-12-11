@@ -96,4 +96,89 @@ export declare const POOL_CONFIG: {
     readonly TEST_ON_BORROW: boolean;
     readonly FIFO: true;
 };
+/**
+ * Qdrant vector database configuration
+ */
+export declare const QDRANT_CONFIG: {
+    readonly HOST: string;
+    readonly API_KEY: string;
+    readonly COLLECTION_NAME: string;
+    readonly VECTOR_SIZE: number;
+    readonly DISTANCE_METRIC: "Cosine";
+    readonly HNSW_M: 16;
+    readonly HNSW_EF_CONSTRUCT: 100;
+    readonly PAYLOAD_INDEXES: readonly [{
+        readonly field: "stage_id";
+        readonly type: "integer";
+    }, {
+        readonly field: "user_id";
+        readonly type: "integer";
+    }, {
+        readonly field: "team_id";
+        readonly type: "integer";
+    }, {
+        readonly field: "expected_revenue";
+        readonly type: "float";
+    }, {
+        readonly field: "is_won";
+        readonly type: "bool";
+    }, {
+        readonly field: "is_lost";
+        readonly type: "bool";
+    }, {
+        readonly field: "is_active";
+        readonly type: "bool";
+    }, {
+        readonly field: "create_date";
+        readonly type: "datetime";
+    }, {
+        readonly field: "sector";
+        readonly type: "keyword";
+    }, {
+        readonly field: "lost_reason_id";
+        readonly type: "integer";
+    }];
+    readonly ENABLED: boolean;
+};
+/**
+ * Voyage AI embedding configuration
+ */
+export declare const VOYAGE_CONFIG: {
+    readonly API_KEY: string;
+    readonly MODEL: string;
+    readonly DIMENSIONS: number;
+    readonly INPUT_TYPE_DOCUMENT: "document";
+    readonly INPUT_TYPE_QUERY: "query";
+    readonly MAX_BATCH_SIZE: 128;
+    readonly MAX_TOKENS_PER_BATCH: 120000;
+    readonly MAX_WORDS: 2000;
+    readonly TRUNCATION: true;
+};
+/**
+ * Sync service configuration
+ */
+export declare const VECTOR_SYNC_CONFIG: {
+    readonly ENABLED: boolean;
+    readonly INTERVAL_MS: number;
+    readonly BATCH_SIZE: number;
+    readonly MAX_RECORDS_PER_SYNC: 10000;
+};
+/**
+ * Similarity score thresholds
+ * Research shows 0.5 is too low - use 0.6 as default
+ */
+export declare const SIMILARITY_THRESHOLDS: {
+    readonly VERY_SIMILAR: 0.8;
+    readonly MEANINGFULLY_SIMILAR: 0.6;
+    readonly LOOSELY_RELATED: 0.4;
+    readonly DEFAULT_MIN: 0.6;
+};
+/**
+ * Circuit breaker for vector services
+ */
+export declare const VECTOR_CIRCUIT_BREAKER_CONFIG: {
+    readonly FAILURE_THRESHOLD: 3;
+    readonly RESET_TIMEOUT_MS: 30000;
+    readonly HALF_OPEN_MAX_ATTEMPTS: 1;
+};
 //# sourceMappingURL=constants.d.ts.map

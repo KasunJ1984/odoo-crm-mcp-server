@@ -1,5 +1,5 @@
 import { ResponseFormat } from '../constants.js';
-import type { CrmLead, PaginatedResponse, PipelineSummary, SalesAnalytics, ActivitySummary, ResPartner, LostReasonWithCount, LostAnalysisSummary, LostOpportunity, LostTrendsSummary, WonOpportunity, WonAnalysisSummary, WonTrendsSummary, SalespersonWithStats, SalesTeamWithStats, PerformanceComparison, ActivityDetail, ExportResult, PipelineSummaryWithWeighted, StateWithStats, StateComparison } from '../types.js';
+import type { CrmLead, PaginatedResponse, PipelineSummary, SalesAnalytics, ActivitySummary, ResPartner, LostReasonWithCount, LostAnalysisSummary, LostOpportunity, LostTrendsSummary, WonOpportunity, WonAnalysisSummary, WonTrendsSummary, SalespersonWithStats, SalesTeamWithStats, PerformanceComparison, ActivityDetail, ExportResult, PipelineSummaryWithWeighted, StateWithStats, StateComparison, VectorMatch, VectorMetadata, PatternDiscoveryResult, SyncResult, VectorStatus } from '../types.js';
 export declare function formatCurrency(value: number | undefined | null): string;
 export declare function formatPercent(value: number | undefined | null): string;
 export declare function formatDate(dateStr: string | undefined | null): string;
@@ -71,4 +71,51 @@ export interface FieldInfo {
  * @returns Formatted string
  */
 export declare function formatFieldsList(model: string, fields: FieldInfo[], format: ResponseFormat, modelType?: 'lead' | 'contact' | 'activity' | 'lost' | 'won'): string;
+/**
+ * Format semantic search results.
+ * Shows opportunities ranked by semantic similarity to the query.
+ *
+ * @param matches - Vector search matches with scores
+ * @param leads - Full CRM lead data from Odoo
+ * @param query - Original search query
+ * @param format - Output format (markdown or json)
+ * @returns Formatted string
+ */
+export declare function formatSemanticSearchResults(matches: VectorMatch[], leads: CrmLead[], query: string, format: ResponseFormat): string;
+/**
+ * Format similar deals results.
+ * Shows opportunities similar to a reference deal.
+ *
+ * @param matches - Vector search matches with scores
+ * @param leads - Full CRM lead data from Odoo
+ * @param reference - Reference deal metadata
+ * @param format - Output format (markdown or json)
+ * @returns Formatted string
+ */
+export declare function formatSimilarDeals(matches: VectorMatch[], leads: CrmLead[], reference: VectorMetadata, format: ResponseFormat): string;
+/**
+ * Format pattern discovery results.
+ * Shows clusters of similar opportunities with themes.
+ *
+ * @param result - Pattern discovery result with clusters
+ * @param format - Output format (markdown or json)
+ * @returns Formatted string
+ */
+export declare function formatPatternDiscovery(result: PatternDiscoveryResult, format: ResponseFormat): string;
+/**
+ * Format sync result.
+ * Shows the outcome of a vector sync operation.
+ *
+ * @param result - Sync operation result
+ * @returns Formatted string
+ */
+export declare function formatSyncResult(result: SyncResult): string;
+/**
+ * Format vector status.
+ * Shows the health and state of the vector infrastructure.
+ *
+ * @param status - Vector system status
+ * @returns Formatted string
+ */
+export declare function formatVectorStatus(status: VectorStatus): string;
 //# sourceMappingURL=formatters.d.ts.map
