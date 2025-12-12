@@ -94,6 +94,12 @@ async function executeWithCircuitBreaker(operation) {
         return result;
     }
     catch (error) {
+        // Log the actual error for debugging
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorDetails = error && typeof error === 'object' && 'status' in error
+            ? ` (status: ${error.status})`
+            : '';
+        console.error(`[Vector] Operation failed: ${errorMessage}${errorDetails}`);
         recordFailure();
         throw error;
     }
