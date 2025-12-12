@@ -181,4 +181,19 @@ export declare const VECTOR_CIRCUIT_BREAKER_CONFIG: {
     readonly RESET_TIMEOUT_MS: 30000;
     readonly HALF_OPEN_MAX_ATTEMPTS: 1;
 };
+/**
+ * Priority field labels.
+ * Odoo stores priority as '0', '1', '2', '3' strings.
+ */
+export declare const PRIORITY_LABELS: Record<string, string>;
+/**
+ * Won status labels.
+ * Maps Odoo's won_status selection field values.
+ */
+export declare const WON_STATUS_LABELS: Record<string, string>;
+/**
+ * Helper to get human-readable label from selection field.
+ * Returns empty string if value not found (graceful handling).
+ */
+export declare function getSelectionLabel(mappings: Record<string, string>, value: string | undefined | null | boolean): string;
 //# sourceMappingURL=constants.d.ts.map

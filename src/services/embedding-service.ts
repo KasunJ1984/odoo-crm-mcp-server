@@ -6,7 +6,7 @@
  */
 
 import { VoyageAIClient } from 'voyageai';
-import { VOYAGE_CONFIG } from '../constants.js';
+import { VOYAGE_CONFIG, PRIORITY_LABELS, getSelectionLabel } from '../constants.js';
 import { CrmLead } from '../types.js';
 import { stripHtml } from '../utils/html-utils.js';
 import { getRelationName } from './formatters.js';
@@ -67,57 +67,207 @@ function truncateText(text: string, maxWords: number): { text: string; truncated
 
 /**
  * Build embedding document text from CRM lead.
- * Combines multiple fields into a semantic document.
+ * Combines multiple fields into a semantic document for vector search.
  *
- * Format:
+ * DESIGN PRINCIPLES:
+ * 1. Include fields with SEMANTIC MEANING (not just IDs)
+ * 2. Use human-readable labels for selection fields
+ * 3. Handle missing/custom fields gracefully (undefined check)
+ * 4. Format consistently for vector similarity
+ *
+ * OUTPUT FORMAT:
  * ```
  * Opportunity: {name}
- * Customer: {contact_name} | Sector: {sector}
- * Location: {city}, {state}
- * Specification: {specification_name}
+ * Partner: {partner_name}
+ * Contact: {contact_name} | Role: {function}
+ * Email: {email} | Phone: {phone}
+ * Sector: {sector}
+ * Location: {street}, {city}, {state}, {country} {zip}
+ * Salesperson: {user_name} | Team: {team_name}
  * Lead Source: {lead_source_name}
- * Revenue: ${expected_revenue} | Stage: {stage_name}
- * Status: Won/Lost/Active {lost_reason if applicable}
+ * UTM: Source: {source} | Medium: {medium} | Campaign: {campaign}
+ * Referred by: {referred}
+ * Specification: {specification_name}
+ * Revenue: ${expected_revenue} | Stage: {stage_name} | Priority: {label}
+ * Status: Won/Lost/Active - {lost_reason}
+ * Project Roles: Architect: {name} | PM: {name} | ...
  * Description: {description}
  * ```
  */
 export function buildEmbeddingText(lead: CrmLead): { text: string; truncated: boolean } {
   const parts: string[] = [];
 
-  // Core identity
+  // ==========================================================================
+  // SECTION 1: CORE IDENTITY (Highest semantic value)
+  // ==========================================================================
+
+  // Opportunity name - most important field
   parts.push(`Opportunity: ${lead.name || 'Untitled'}`);
 
-  // Customer info
-  const customerParts: string[] = [];
-  if (lead.contact_name) customerParts.push(`Customer: ${lead.contact_name}`);
-  if (lead.sector) customerParts.push(`Sector: ${lead.sector}`);
-  if (customerParts.length > 0) parts.push(customerParts.join(' | '));
-
-  // Location
-  const city = lead.city || '';
-  const state = lead.state_id ? getRelationName(lead.state_id) : '';
-  if (city || state) {
-    parts.push(`Location: ${[city, state].filter(Boolean).join(', ')}`);
+  // Partner/Company name - CRITICAL for B2B search
+  if (lead.partner_id) {
+    parts.push(`Partner: ${getRelationName(lead.partner_id)}`);
+  } else if (lead.partner_name) {
+    // Fallback to partner_name field if available
+    parts.push(`Partner: ${lead.partner_name}`);
   }
 
-  // Classification
-  if (lead.specification_id) {
-    parts.push(`Specification: ${getRelationName(lead.specification_id)}`);
+  // ==========================================================================
+  // SECTION 2: CONTACT INFORMATION
+  // ==========================================================================
+
+  // Customer contact with job position
+  const contactParts: string[] = [];
+  if (lead.contact_name) {
+    contactParts.push(`Contact: ${lead.contact_name}`);
   }
+  if (lead.function) {
+    contactParts.push(`Role: ${lead.function}`);
+  }
+  if (contactParts.length > 0) {
+    parts.push(contactParts.join(' | '));
+  }
+
+  // Contact details (email, phone) - useful for deduplication and search
+  const contactDetailParts: string[] = [];
+  if (lead.email_from) {
+    contactDetailParts.push(`Email: ${lead.email_from}`);
+  }
+  if (lead.phone) {
+    contactDetailParts.push(`Phone: ${lead.phone}`);
+  }
+  if (lead.mobile && lead.mobile !== lead.phone) {
+    contactDetailParts.push(`Mobile: ${lead.mobile}`);
+  }
+  if (contactDetailParts.length > 0) {
+    parts.push(contactDetailParts.join(' | '));
+  }
+
+  // ==========================================================================
+  // SECTION 3: CLASSIFICATION
+  // ==========================================================================
+
+  // Sector - critical for industry-based search
+  if (lead.sector) {
+    parts.push(`Sector: ${lead.sector}`);
+  }
+
+  // ==========================================================================
+  // SECTION 4: LOCATION (Full address for geographic similarity)
+  // ==========================================================================
+
+  const locationParts: string[] = [];
+  if (lead.street) locationParts.push(lead.street);
+  if (lead.city) locationParts.push(lead.city);
+  if (lead.state_id) locationParts.push(getRelationName(lead.state_id));
+  if (lead.country_id) {
+    const countryName = getRelationName(lead.country_id);
+    // Only include country if it's not Australia (default)
+    if (countryName && countryName !== 'Australia') {
+      locationParts.push(countryName);
+    }
+  }
+  if (lead.zip) locationParts.push(lead.zip);
+
+  if (locationParts.length > 0) {
+    parts.push(`Location: ${locationParts.join(', ')}`);
+  }
+
+  // Custom project address (if different from main address)
+  if (lead.project_address) {
+    parts.push(`Project Address: ${lead.project_address}`);
+  }
+
+  // ==========================================================================
+  // SECTION 5: ASSIGNMENT & TEAM
+  // ==========================================================================
+
+  const assignmentParts: string[] = [];
+  if (lead.user_id) {
+    assignmentParts.push(`Salesperson: ${getRelationName(lead.user_id)}`);
+  }
+  if (lead.team_id) {
+    assignmentParts.push(`Team: ${getRelationName(lead.team_id)}`);
+  }
+  if (assignmentParts.length > 0) {
+    parts.push(assignmentParts.join(' | '));
+  }
+
+  // ==========================================================================
+  // SECTION 6: LEAD SOURCES (Attribution)
+  // ==========================================================================
+
+  // Custom lead source (primary source tracking)
   if (lead.lead_source_id) {
     parts.push(`Lead Source: ${getRelationName(lead.lead_source_id)}`);
   }
 
-  // Business metrics
+  // UTM parameters (marketing attribution)
+  const utmParts: string[] = [];
+  if (lead.source_id) {
+    utmParts.push(`Source: ${getRelationName(lead.source_id)}`);
+  }
+  if (lead.medium_id) {
+    utmParts.push(`Medium: ${getRelationName(lead.medium_id)}`);
+  }
+  if (lead.campaign_id) {
+    utmParts.push(`Campaign: ${getRelationName(lead.campaign_id)}`);
+  }
+  if (utmParts.length > 0) {
+    parts.push(`UTM: ${utmParts.join(' | ')}`);
+  }
+
+  // Referral source
+  if (lead.referred) {
+    parts.push(`Referred by: ${lead.referred}`);
+  }
+
+  // ==========================================================================
+  // SECTION 7: SPECIFICATION & CLASSIFICATION
+  // ==========================================================================
+
+  if (lead.specification_id) {
+    parts.push(`Specification: ${getRelationName(lead.specification_id)}`);
+  }
+
+  // ==========================================================================
+  // SECTION 8: BUSINESS METRICS
+  // ==========================================================================
+
+  const metricsParts: string[] = [];
+
+  // Revenue
   const revenue = lead.expected_revenue
     ? `$${lead.expected_revenue.toLocaleString()}`
     : 'Not specified';
-  const stage = lead.stage_id ? getRelationName(lead.stage_id) : 'Unknown';
-  parts.push(`Revenue: ${revenue} | Stage: ${stage}`);
+  metricsParts.push(`Revenue: ${revenue}`);
 
-  // Status
-  const isWon = lead.stage_id && typeof lead.stage_id !== 'number' &&
-                lead.stage_id[1]?.toLowerCase().includes('won');
+  // Stage
+  const stage = lead.stage_id ? getRelationName(lead.stage_id) : 'Unknown';
+  metricsParts.push(`Stage: ${stage}`);
+
+  // Priority (with human-readable label)
+  const priorityLabel = getSelectionLabel(PRIORITY_LABELS, lead.priority);
+  if (priorityLabel) {
+    metricsParts.push(`Priority: ${priorityLabel}`);
+  }
+
+  parts.push(metricsParts.join(' | '));
+
+  // ==========================================================================
+  // SECTION 9: STATUS (Won/Lost/Active)
+  // ==========================================================================
+
+  // Determine status from won_status field or stage name patterns
+  const stageName = (lead.stage_id && typeof lead.stage_id !== 'number')
+    ? lead.stage_id[1]?.toLowerCase() || ''
+    : '';
+
+  const isWon = lead.won_status === 'won' ||
+                stageName.includes('invoiced') ||
+                stageName.includes('signed oc') ||
+                stageName.includes('in production') ||
+                stageName.includes('won');
   const isLost = !!lead.lost_reason_id;
 
   let status = 'Active';
@@ -129,13 +279,68 @@ export function buildEmbeddingText(lead: CrmLead): { text: string; truncated: bo
   }
   parts.push(`Status: ${status}`);
 
-  // Description (most semantic content)
+  // ==========================================================================
+  // SECTION 10: CUSTOM FIELDS (graceful handling if undefined)
+  // ==========================================================================
+
+  // Custom role fields (may not exist in all Odoo instances)
+  const customRoleParts: string[] = [];
+
+  if (lead.architect_id) {
+    customRoleParts.push(`Architect: ${getRelationName(lead.architect_id)}`);
+  }
+  if (lead.client_id) {
+    customRoleParts.push(`Client: ${getRelationName(lead.client_id)}`);
+  }
+  if (lead.estimator_id) {
+    customRoleParts.push(`Estimator: ${getRelationName(lead.estimator_id)}`);
+  }
+  if (lead.project_manager_id) {
+    customRoleParts.push(`PM: ${getRelationName(lead.project_manager_id)}`);
+  }
+  if (lead.spec_rep_id) {
+    customRoleParts.push(`Spec Rep: ${getRelationName(lead.spec_rep_id)}`);
+  }
+
+  if (customRoleParts.length > 0) {
+    parts.push(`Project Roles: ${customRoleParts.join(' | ')}`);
+  }
+
+  // Custom text fields
+  if (lead.x_studio_building_owner) {
+    parts.push(`Building Owner: ${lead.x_studio_building_owner}`);
+  }
+  if (lead.design) {
+    // Limit design notes to 300 words
+    const designResult = truncateText(lead.design, 300);
+    parts.push(`Design: ${designResult.text}`);
+  }
+  if (lead.quote) {
+    parts.push(`Quote: ${lead.quote}`);
+  }
+
+  // ==========================================================================
+  // SECTION 11: DESCRIPTION (Most semantic content - truncated if needed)
+  // ==========================================================================
+
   let truncated = false;
   if (lead.description) {
     const cleanDesc = stripHtml(lead.description);
-    const result = truncateText(cleanDesc, VOYAGE_CONFIG.MAX_WORDS);
-    truncated = result.truncated;
-    parts.push(`Description: ${result.text}`);
+    if (cleanDesc.trim()) {
+      const result = truncateText(cleanDesc, VOYAGE_CONFIG.MAX_WORDS);
+      truncated = result.truncated;
+      parts.push(`Description: ${result.text}`);
+    }
+  }
+
+  // Address notes (often contains useful project context)
+  if (lead.address_note) {
+    const cleanNote = stripHtml(lead.address_note);
+    if (cleanNote.trim()) {
+      // Limit address notes to 200 words to avoid overwhelming
+      const noteResult = truncateText(cleanNote, 200);
+      parts.push(`Notes: ${noteResult.text}`);
+    }
   }
 
   return {

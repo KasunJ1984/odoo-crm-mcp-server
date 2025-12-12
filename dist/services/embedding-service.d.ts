@@ -21,17 +21,30 @@ export declare function getEmbeddingClient(): VoyageAIClient | null;
 export declare function isEmbeddingServiceAvailable(): boolean;
 /**
  * Build embedding document text from CRM lead.
- * Combines multiple fields into a semantic document.
+ * Combines multiple fields into a semantic document for vector search.
  *
- * Format:
+ * DESIGN PRINCIPLES:
+ * 1. Include fields with SEMANTIC MEANING (not just IDs)
+ * 2. Use human-readable labels for selection fields
+ * 3. Handle missing/custom fields gracefully (undefined check)
+ * 4. Format consistently for vector similarity
+ *
+ * OUTPUT FORMAT:
  * ```
  * Opportunity: {name}
- * Customer: {contact_name} | Sector: {sector}
- * Location: {city}, {state}
- * Specification: {specification_name}
+ * Partner: {partner_name}
+ * Contact: {contact_name} | Role: {function}
+ * Email: {email} | Phone: {phone}
+ * Sector: {sector}
+ * Location: {street}, {city}, {state}, {country} {zip}
+ * Salesperson: {user_name} | Team: {team_name}
  * Lead Source: {lead_source_name}
- * Revenue: ${expected_revenue} | Stage: {stage_name}
- * Status: Won/Lost/Active {lost_reason if applicable}
+ * UTM: Source: {source} | Medium: {medium} | Campaign: {campaign}
+ * Referred by: {referred}
+ * Specification: {specification_name}
+ * Revenue: ${expected_revenue} | Stage: {stage_name} | Priority: {label}
+ * Status: Won/Lost/Active - {lost_reason}
+ * Project Roles: Architect: {name} | PM: {name} | ...
  * Description: {description}
  * ```
  */

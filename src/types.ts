@@ -49,6 +49,27 @@ export interface CrmLead extends OdooRecord {
   sector?: string;
   specification_id?: [number, string];
   won_status?: string;  // Odoo native field: 'won' | 'lost' | 'pending'
+
+  // Additional standard fields
+  zip?: string;
+  function?: string;  // Job position/title
+  partner_name?: string;  // Partner display name (convenience field)
+
+  // Custom many2one fields (may not exist in all Odoo instances)
+  // These return [id, name] tuples if present, undefined if field doesn't exist
+  architect_id?: [number, string];
+  client_id?: [number, string];
+  estimator_id?: [number, string];
+  project_manager_id?: [number, string];
+  spec_rep_id?: [number, string];
+
+  // Custom text/char fields
+  design?: string;
+  quote?: string;
+  referred?: string;
+  address_note?: string;
+  project_address?: string;
+  x_studio_building_owner?: string;
 }
 
 // CRM Stage

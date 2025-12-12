@@ -47,15 +47,22 @@ export const CRM_FIELDS = {
         'date_deadline', 'partner_id', 'description',
         'lead_source_id', 'sector', 'specification_id'
     ],
-    // Detailed fields for single record views
+    // Detailed fields for single record views (including custom fields for embeddings)
     LEAD_DETAIL: [
+        // Core fields
         'id', 'name', 'contact_name', 'email_from', 'phone', 'mobile',
         'street', 'city', 'state_id', 'country_id', 'expected_revenue', 'probability',
         'stage_id', 'user_id', 'team_id', 'source_id', 'medium_id',
         'campaign_id', 'description', 'create_date', 'write_date',
         'date_deadline', 'date_closed', 'lost_reason_id', 'tag_ids',
         'partner_id', 'company_id', 'priority', 'type', 'active',
-        'lead_source_id', 'sector', 'specification_id', 'won_status'
+        'lead_source_id', 'sector', 'specification_id', 'won_status',
+        // Additional standard fields for embeddings
+        'zip', 'function', 'partner_name',
+        // Custom fields (will be undefined if not present in Odoo instance)
+        'architect_id', 'client_id', 'estimator_id', 'project_manager_id',
+        'spec_rep_id', 'design', 'quote', 'referred',
+        'address_note', 'project_address', 'x_studio_building_owner',
     ],
     // Fields for pipeline analysis
     PIPELINE_SUMMARY: [
@@ -333,4 +340,38 @@ export const VECTOR_CIRCUIT_BREAKER_CONFIG = {
     RESET_TIMEOUT_MS: 30000, // Try again after 30s
     HALF_OPEN_MAX_ATTEMPTS: 1,
 };
+// =============================================================================
+// SELECTION FIELD LABEL MAPPINGS (for embedding text generation)
+// =============================================================================
+/**
+ * Priority field labels.
+ * Odoo stores priority as '0', '1', '2', '3' strings.
+ */
+export const PRIORITY_LABELS = {
+    '0': 'Low',
+    '1': 'Medium',
+    '2': 'High',
+    '3': 'Very High',
+    'false': '',
+};
+/**
+ * Won status labels.
+ * Maps Odoo's won_status selection field values.
+ */
+export const WON_STATUS_LABELS = {
+    'won': 'Won',
+    'lost': 'Lost',
+    'pending': 'In Progress',
+    'false': '',
+};
+/**
+ * Helper to get human-readable label from selection field.
+ * Returns empty string if value not found (graceful handling).
+ */
+export function getSelectionLabel(mappings, value) {
+    if (value === undefined || value === null || value === false) {
+        return '';
+    }
+    return mappings[String(value)] || String(value);
+}
 //# sourceMappingURL=constants.js.map
