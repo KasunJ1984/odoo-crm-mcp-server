@@ -117,9 +117,9 @@ export async function fullSync(
     // Ensure collection exists before syncing
     await ensureCollection();
 
-    // Phase 1: Fetch all active opportunities from Odoo
+    // Phase 1: Fetch all opportunities from Odoo (including lost and won)
     const leads = await useClient(async (client) => {
-      const domain = [['active', '=', true]];
+      const domain: Array<string | boolean | Array<string | boolean>> = [];
       const total = await client.searchCount('crm.lead', domain);
 
       const allLeads: CrmLead[] = [];
@@ -263,11 +263,10 @@ export async function incrementalSync(
     // Ensure collection exists before syncing
     await ensureCollection();
 
-    // Fetch changed records from Odoo
+    // Fetch changed records from Odoo (including lost and won)
     const leads = await useClient(async (client) => {
       const domain = [
         ['write_date', '>=', sinceDate],
-        ['active', '=', true],
       ];
       return client.searchRead<CrmLead>('crm.lead', domain, CRM_FIELDS.LEAD_DETAIL);
     });

@@ -102,9 +102,9 @@ export async function fullSync(onProgress) {
     try {
         // Ensure collection exists before syncing
         await ensureCollection();
-        // Phase 1: Fetch all active opportunities from Odoo
+        // Phase 1: Fetch all opportunities from Odoo (including lost and won)
         const leads = await useClient(async (client) => {
-            const domain = [['active', '=', true]];
+            const domain = [];
             const total = await client.searchCount('crm.lead', domain);
             const allLeads = [];
             const batchSize = VECTOR_SYNC_CONFIG.BATCH_SIZE;
@@ -225,11 +225,10 @@ export async function incrementalSync(since, onProgress) {
     try {
         // Ensure collection exists before syncing
         await ensureCollection();
-        // Fetch changed records from Odoo
+        // Fetch changed records from Odoo (including lost and won)
         const leads = await useClient(async (client) => {
             const domain = [
                 ['write_date', '>=', sinceDate],
-                ['active', '=', true],
             ];
             return client.searchRead('crm.lead', domain, CRM_FIELDS.LEAD_DETAIL);
         });
