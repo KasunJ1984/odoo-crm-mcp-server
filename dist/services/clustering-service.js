@@ -7,6 +7,7 @@
 import { kmeans } from 'ml-kmeans';
 import { search } from './vector-client.js';
 import { embed } from './embedding-service.js';
+import { QDRANT_CONFIG } from '../constants.js';
 /**
  * Cluster embeddings using K-means.
  *
@@ -136,7 +137,7 @@ export async function discoverPatterns(analysisType, filter, numClusters = 5) {
         vectorFilter.expected_revenue = { $gte: filter.min_revenue };
     }
     // Get all matching vectors (up to 1000 for clustering)
-    const dummyVector = new Array(1024).fill(0);
+    const dummyVector = new Array(QDRANT_CONFIG.VECTOR_SIZE).fill(0);
     const searchResult = await search({
         vector: dummyVector,
         topK: 1000,

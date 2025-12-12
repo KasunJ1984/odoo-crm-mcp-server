@@ -631,7 +631,7 @@ export interface VectorConfig {
 export interface EmbeddingConfig {
   apiKey: string;            // VOYAGE_API_KEY
   model: string;             // EMBEDDING_MODEL - "voyage-3-lite"
-  dimensions: number;        // EMBEDDING_DIMENSIONS - 1024
+  dimensions: number;        // EMBEDDING_DIMENSIONS - 512 (voyage-3-lite)
 }
 
 /**
@@ -697,7 +697,7 @@ export interface VectorMetadata {
  */
 export interface VectorRecord {
   id: string;                // String ID (Odoo ID as string)
-  values: number[];          // 1024-dimensional embedding vector
+  values: number[];          // 512-dimensional embedding vector (voyage-3-lite)
   metadata: VectorMetadata;
 }
 

@@ -44,7 +44,7 @@ export declare function buildEmbeddingText(lead: CrmLead): {
  *
  * @param text - The text to embed
  * @param inputType - "document" for CRM records, "query" for search queries
- * @returns 1024-dimensional embedding vector
+ * @returns 512-dimensional embedding vector (voyage-3-lite)
  */
 export declare function embed(text: string, inputType?: 'document' | 'query'): Promise<number[]>;
 /**

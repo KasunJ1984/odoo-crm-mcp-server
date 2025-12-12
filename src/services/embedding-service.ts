@@ -149,7 +149,7 @@ export function buildEmbeddingText(lead: CrmLead): { text: string; truncated: bo
  *
  * @param text - The text to embed
  * @param inputType - "document" for CRM records, "query" for search queries
- * @returns 1024-dimensional embedding vector
+ * @returns 512-dimensional embedding vector (voyage-3-lite)
  */
 export async function embed(
   text: string,

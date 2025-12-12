@@ -318,8 +318,8 @@ export const QDRANT_CONFIG = {
   API_KEY: process.env.QDRANT_API_KEY || '',
   COLLECTION_NAME: process.env.QDRANT_COLLECTION || 'odoo_crm_leads',
 
-  // Vector settings
-  VECTOR_SIZE: parseInt(process.env.EMBEDDING_DIMENSIONS || '1024'),
+  // Vector settings (voyage-3-lite supports 512 dims only)
+  VECTOR_SIZE: parseInt(process.env.EMBEDDING_DIMENSIONS || '512'),
   DISTANCE_METRIC: 'Cosine' as const,
 
   // HNSW index settings (create BEFORE data upload)
@@ -350,7 +350,7 @@ export const QDRANT_CONFIG = {
 export const VOYAGE_CONFIG = {
   API_KEY: process.env.VOYAGE_API_KEY || '',
   MODEL: process.env.EMBEDDING_MODEL || 'voyage-3-lite',
-  DIMENSIONS: parseInt(process.env.EMBEDDING_DIMENSIONS || '1024'),
+  DIMENSIONS: parseInt(process.env.EMBEDDING_DIMENSIONS || '512'),  // voyage-3-lite max
 
   // Input types (improves retrieval quality)
   INPUT_TYPE_DOCUMENT: 'document' as const,
