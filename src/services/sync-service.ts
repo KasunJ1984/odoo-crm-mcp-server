@@ -5,7 +5,7 @@
  * Supports incremental sync and full rebuild with conflict handling.
  */
 
-import { VECTOR_SYNC_CONFIG, CRM_FIELDS, QDRANT_CONFIG } from '../constants.js';
+import { VECTOR_SYNC_CONFIG, CRM_FIELDS, QDRANT_CONFIG, PRIORITY_LABELS, getSelectionLabel } from '../constants.js';
 import { CrmLead, VectorRecord, VectorMetadata, SyncProgress, SyncResult, VectorStatus } from '../types.js';
 import { useClient } from './odoo-pool.js';
 import { buildEmbeddingText, embedBatch, isEmbeddingServiceAvailable } from './embedding-service.js';
@@ -40,6 +40,7 @@ export function isSyncInProgress(): boolean {
 
 /**
  * Build VectorMetadata from CrmLead.
+ * Includes all semantic fields for display in search results.
  */
 function buildMetadata(lead: CrmLead, embeddingText: string, truncated: boolean): VectorMetadata {
   // Determine if opportunity is won
@@ -56,6 +57,7 @@ function buildMetadata(lead: CrmLead, embeddingText: string, truncated: boolean)
   const isLost = !!lead.lost_reason_id;
 
   return {
+    // === EXISTING FIELDS ===
     odoo_id: lead.id,
     name: lead.name || 'Untitled',
     stage_id: typeof lead.stage_id === 'number' ? lead.stage_id : (lead.stage_id?.[0] || 0),
@@ -86,6 +88,57 @@ function buildMetadata(lead: CrmLead, embeddingText: string, truncated: boolean)
     last_synced: new Date().toISOString(),
     truncated,
     embedding_text: embeddingText,
+
+    // === NEW FIELDS (Phase 2) ===
+
+    // Partner/Company
+    partner_id: typeof lead.partner_id === 'number' ? lead.partner_id : (lead.partner_id?.[0] || undefined),
+    partner_name: lead.partner_id ? getRelationName(lead.partner_id) : (lead.partner_name || undefined),
+
+    // Contact Information
+    contact_name: lead.contact_name || undefined,
+    function: lead.function || undefined,
+    email_from: lead.email_from || undefined,
+    phone: lead.phone || undefined,
+    mobile: lead.mobile || undefined,
+
+    // Extended Location
+    street: lead.street || undefined,
+    zip: lead.zip || undefined,
+    country_id: typeof lead.country_id === 'number' ? lead.country_id : (lead.country_id?.[0] || undefined),
+    country_name: lead.country_id ? getRelationName(lead.country_id) : undefined,
+    project_address: lead.project_address || undefined,
+
+    // UTM Attribution
+    source_id: typeof lead.source_id === 'number' ? lead.source_id : (lead.source_id?.[0] || undefined),
+    source_name: lead.source_id ? getRelationName(lead.source_id) : undefined,
+    medium_id: typeof lead.medium_id === 'number' ? lead.medium_id : (lead.medium_id?.[0] || undefined),
+    medium_name: lead.medium_id ? getRelationName(lead.medium_id) : undefined,
+    campaign_id: typeof lead.campaign_id === 'number' ? lead.campaign_id : (lead.campaign_id?.[0] || undefined),
+    campaign_name: lead.campaign_id ? getRelationName(lead.campaign_id) : undefined,
+    referred: lead.referred || undefined,
+
+    // Priority
+    priority: lead.priority || undefined,
+    priority_label: getSelectionLabel(PRIORITY_LABELS, lead.priority) || undefined,
+
+    // Custom Role Fields (graceful handling if undefined)
+    architect_id: typeof lead.architect_id === 'number' ? lead.architect_id : (lead.architect_id?.[0] || undefined),
+    architect_name: lead.architect_id ? getRelationName(lead.architect_id) : undefined,
+    client_id: typeof lead.client_id === 'number' ? lead.client_id : (lead.client_id?.[0] || undefined),
+    client_name: lead.client_id ? getRelationName(lead.client_id) : undefined,
+    estimator_id: typeof lead.estimator_id === 'number' ? lead.estimator_id : (lead.estimator_id?.[0] || undefined),
+    estimator_name: lead.estimator_id ? getRelationName(lead.estimator_id) : undefined,
+    project_manager_id: typeof lead.project_manager_id === 'number' ? lead.project_manager_id : (lead.project_manager_id?.[0] || undefined),
+    project_manager_name: lead.project_manager_id ? getRelationName(lead.project_manager_id) : undefined,
+    spec_rep_id: typeof lead.spec_rep_id === 'number' ? lead.spec_rep_id : (lead.spec_rep_id?.[0] || undefined),
+    spec_rep_name: lead.spec_rep_id ? getRelationName(lead.spec_rep_id) : undefined,
+
+    // Custom Text Fields
+    x_studio_building_owner: lead.x_studio_building_owner || undefined,
+    design: lead.design || undefined,
+    quote: lead.quote || undefined,
+    address_note: lead.address_note || undefined,
   };
 }
 

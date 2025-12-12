@@ -335,6 +335,7 @@ export const QDRANT_CONFIG = {
 
   // Payload indexes to create
   PAYLOAD_INDEXES: [
+    // Existing indexes
     { field: 'stage_id', type: 'integer' as const },
     { field: 'user_id', type: 'integer' as const },
     { field: 'team_id', type: 'integer' as const },
@@ -345,6 +346,12 @@ export const QDRANT_CONFIG = {
     { field: 'create_date', type: 'datetime' as const },
     { field: 'sector', type: 'keyword' as const },
     { field: 'lost_reason_id', type: 'integer' as const },
+    // NEW indexes for common filtering (Phase 2)
+    { field: 'partner_id', type: 'integer' as const },
+    { field: 'country_id', type: 'integer' as const },
+    { field: 'priority', type: 'keyword' as const },
+    { field: 'architect_id', type: 'integer' as const },
+    { field: 'source_id', type: 'integer' as const },
   ],
 
   // Enabled flag

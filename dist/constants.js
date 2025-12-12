@@ -282,6 +282,7 @@ export const QDRANT_CONFIG = {
     HNSW_EF_CONSTRUCT: 100, // Size of dynamic candidate list
     // Payload indexes to create
     PAYLOAD_INDEXES: [
+        // Existing indexes
         { field: 'stage_id', type: 'integer' },
         { field: 'user_id', type: 'integer' },
         { field: 'team_id', type: 'integer' },
@@ -292,6 +293,12 @@ export const QDRANT_CONFIG = {
         { field: 'create_date', type: 'datetime' },
         { field: 'sector', type: 'keyword' },
         { field: 'lost_reason_id', type: 'integer' },
+        // NEW indexes for common filtering (Phase 2)
+        { field: 'partner_id', type: 'integer' },
+        { field: 'country_id', type: 'integer' },
+        { field: 'priority', type: 'keyword' },
+        { field: 'architect_id', type: 'integer' },
+        { field: 'source_id', type: 'integer' },
     ],
     // Enabled flag
     ENABLED: process.env.VECTOR_ENABLED !== 'false',

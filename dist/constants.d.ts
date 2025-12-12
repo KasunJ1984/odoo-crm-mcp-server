@@ -137,6 +137,21 @@ export declare const QDRANT_CONFIG: {
     }, {
         readonly field: "lost_reason_id";
         readonly type: "integer";
+    }, {
+        readonly field: "partner_id";
+        readonly type: "integer";
+    }, {
+        readonly field: "country_id";
+        readonly type: "integer";
+    }, {
+        readonly field: "priority";
+        readonly type: "keyword";
+    }, {
+        readonly field: "architect_id";
+        readonly type: "integer";
+    }, {
+        readonly field: "source_id";
+        readonly type: "integer";
     }];
     readonly ENABLED: boolean;
 };

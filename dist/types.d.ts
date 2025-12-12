@@ -608,6 +608,41 @@ export interface VectorMetadata {
     last_synced: string;
     truncated?: boolean;
     embedding_text: string;
+    partner_id?: number;
+    partner_name?: string;
+    contact_name?: string;
+    function?: string;
+    email_from?: string;
+    phone?: string;
+    mobile?: string;
+    street?: string;
+    zip?: string;
+    country_id?: number;
+    country_name?: string;
+    project_address?: string;
+    source_id?: number;
+    source_name?: string;
+    medium_id?: number;
+    medium_name?: string;
+    campaign_id?: number;
+    campaign_name?: string;
+    referred?: string;
+    priority?: string;
+    priority_label?: string;
+    architect_id?: number;
+    architect_name?: string;
+    client_id?: number;
+    client_name?: string;
+    estimator_id?: number;
+    estimator_name?: string;
+    project_manager_id?: number;
+    project_manager_name?: string;
+    spec_rep_id?: number;
+    spec_rep_name?: string;
+    x_studio_building_owner?: string;
+    design?: string;
+    quote?: string;
+    address_note?: string;
 }
 /**
  * A single vector record to upsert into Qdrant
@@ -653,6 +688,13 @@ export interface VectorFilter {
         $gte?: string;
         $lte?: string;
     };
+    partner_id?: number | {
+        $in: number[];
+    };
+    country_id?: number;
+    priority?: string;
+    architect_id?: number;
+    source_id?: number;
 }
 /**
  * A single match from vector search
