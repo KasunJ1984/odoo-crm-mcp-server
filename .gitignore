@@ -2,3 +2,9 @@ node_modules/
 .env
 *.log
 .DS_Store
+
+# ACL Setup Script
+scripts/.env
+scripts/backups/
+scripts/logs/
+scripts/checkpoint.json
