@@ -3,7 +3,7 @@ import { getPoolMetrics, useClient } from '../services/odoo-pool.js';
 import { formatLeadList, formatLeadDetail, formatPipelineSummary, formatSalesAnalytics, formatContactList, formatActivitySummary, getRelationName, formatLostReasonsList, formatLostAnalysis, formatLostOpportunitiesList, formatLostTrends, formatDate, formatWonOpportunitiesList, formatWonAnalysis, formatWonTrends, formatSalespeopleList, formatTeamsList, formatPerformanceComparison, formatActivityList, formatExportResult, formatStatesList, formatStateComparison, formatFieldsList, formatColorTrends, formatRfqByColorList } from '../services/formatters.js';
 import { LeadSearchSchema, LeadDetailSchema, PipelineSummarySchema, SalesAnalyticsSchema, ContactSearchSchema, ActivitySummarySchema, StageListSchema, LostReasonsListSchema, LostAnalysisSchema, LostOpportunitiesSearchSchema, LostTrendsSchema, WonOpportunitiesSearchSchema, WonAnalysisSchema, WonTrendsSchema, SalespeopleListSchema, TeamsListSchema, ComparePerformanceSchema, ActivitySearchSchema, ExportDataSchema, StatesListSchema, CompareStatesSchema, CacheStatusSchema, HealthCheckSchema, ListFieldsSchema, ColorTrendsSchema, RfqByColorSearchSchema } from '../schemas/index.js';
 import { CRM_FIELDS, CONTEXT_LIMITS, ResponseFormat, EXPORT_CONFIG, FIELD_PRESETS, resolveFields } from '../constants.js';
-import { enrichLeadsWithColor, enrichLeadsWithEnhancedColor, buildColorTrendsSummary, filterLeadsByColor } from '../services/color-service.js';
+import { enrichLeadsWithEnhancedColor, buildColorTrendsSummary, filterLeadsByColor } from '../services/color-service.js';
 import { ExportWriter, generateExportFilename, getOutputDirectory, getMimeType } from '../utils/export-writer.js';
 import { convertDateToUtc, getDaysAgoUtc } from '../utils/timezone.js';
 import { cache, CACHE_KEYS } from '../utils/cache.js';
@@ -2961,8 +2961,8 @@ This tool extracts color information from opportunity notes/descriptions and agg
                 }
                 // Fetch leads with description field (up to 5000 for trend analysis)
                 const leads = await client.searchRead('crm.lead', domain, CRM_FIELDS.RFQ_COLOR_FIELDS, { limit: 5000, offset: 0, order: `${dateField} desc` });
-                // Enrich leads with color extraction
-                const leadsWithColor = enrichLeadsWithColor(leads);
+                // Enrich leads with enhanced color extraction (unified with search_rfq_by_color)
+                const leadsWithColor = enrichLeadsWithEnhancedColor(leads);
                 // Build color trends summary
                 const summary = buildColorTrendsSummary(leadsWithColor, params.granularity || 'month', dateField);
                 const output = formatColorTrends(summary, params.response_format);

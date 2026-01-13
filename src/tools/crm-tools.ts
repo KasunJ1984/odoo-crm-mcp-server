@@ -3927,8 +3927,8 @@ This tool extracts color information from opportunity notes/descriptions and agg
             { limit: 5000, offset: 0, order: `${dateField} desc` }
           );
 
-          // Enrich leads with color extraction
-          const leadsWithColor = enrichLeadsWithColor(leads);
+          // Enrich leads with enhanced color extraction (unified with search_rfq_by_color)
+          const leadsWithColor = enrichLeadsWithEnhancedColor(leads);
 
           // Build color trends summary
           const summary = buildColorTrendsSummary(
