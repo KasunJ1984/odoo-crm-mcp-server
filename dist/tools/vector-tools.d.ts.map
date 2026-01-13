@@ -1,1 +1,1 @@
-{"version":3,"file":"vector-tools.d.ts","sourceRoot":"","sources":["../../src/tools/vector-tools.ts"],"names":[],"mappings":"AAAA;;;;;;;;;GASG;AAEH,OAAO,EAAE,SAAS,EAAE,MAAM,yCAAyC,CAAC;AAmDpE;;GAEG;AACH,wBAAgB,mBAAmB,CAAC,MAAM,EAAE,SAAS,GAAG,IAAI,CA8T3D"}
+{"version":3,"file":"vector-tools.d.ts","sourceRoot":"","sources":["../../src/tools/vector-tools.ts"],"names":[],"mappings":"AAAA;;;;;;;;;GASG;AAEH,OAAO,EAAE,SAAS,EAAE,MAAM,yCAAyC,CAAC;AAoDpE;;GAEG;AACH,wBAAgB,mBAAmB,CAAC,MAAM,EAAE,SAAS,GAAG,IAAI,CA0V3D"}

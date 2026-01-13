@@ -794,6 +794,132 @@ export const HealthCheckSchema = z.object({
     .describe("Output format: 'markdown' or 'json'")
 }).strict();
 
+// =============================================================================
+// COLOR ANALYSIS SCHEMAS - For RFQ color trends and analysis
+// =============================================================================
+
+import { COLOR_CATEGORIES } from '../constants.js';
+
+/**
+ * Schema for color trends analysis tool.
+ * Analyzes color mentions in opportunity descriptions over time.
+ */
+export const ColorTrendsSchema = z.object({
+  date_from: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe('Start date (YYYY-MM-DD). Defaults to 12 months ago.'),
+  date_to: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe('End date (YYYY-MM-DD). Defaults to today.'),
+  date_field: z.enum(['create_date', 'tender_rfq_date', 'date_closed'])
+    .default('tender_rfq_date')
+    .describe("Date field to use for filtering and grouping: 'tender_rfq_date' (RFQ date), 'create_date', or 'date_closed'"),
+  granularity: z.enum(['month', 'quarter'])
+    .default('month')
+    .describe("Time period granularity: 'month' or 'quarter'"),
+  user_id: z.number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Filter by salesperson user ID'),
+  team_id: z.number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Filter by sales team ID'),
+  state_id: z.number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Filter by Australian state/territory ID'),
+  min_revenue: z.number()
+    .min(0)
+    .optional()
+    .describe('Minimum expected revenue filter'),
+  stage_id: z.number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Filter by specific stage ID. Use odoo_crm_list_stages to discover IDs.'),
+  stage_name: z.string()
+    .optional()
+    .describe('Filter by stage name (case-insensitive partial match). E.g., "Tender RFQ", "Design Phase"'),
+  response_format: z.nativeEnum(ResponseFormat)
+    .default(ResponseFormat.MARKDOWN)
+    .describe("Output format: 'markdown' or 'json'")
+}).strict();
+
+/**
+ * Schema for RFQ search by color tool.
+ * Searches opportunities filtered by extracted color information.
+ */
+export const RfqByColorSearchSchema = PaginationSchema.extend({
+  color_category: z.enum(COLOR_CATEGORIES as unknown as [string, ...string[]])
+    .optional()
+    .describe("Filter by color category: 'Blue', 'Grey', 'White', 'Black', 'Brown', 'Green', 'Red', 'Yellow', 'Orange', 'Pink', 'Purple', 'Other', or 'Unknown'. Leave empty for all colors."),
+  color_code: z.string()
+    .max(10)
+    .optional()
+    .describe("Filter by product color code (e.g., '9610', '2440'). Matches codes from 'Specified Colours' format."),
+  raw_color: z.string()
+    .max(50)
+    .optional()
+    .describe("Filter by raw color text (partial match): 'navy', 'cream', 'charcoal', 'Pure Ash', etc."),
+  date_from: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe('Filter by date from (YYYY-MM-DD)'),
+  date_to: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe('Filter by date to (YYYY-MM-DD)'),
+  date_field: z.enum(['create_date', 'tender_rfq_date', 'date_closed'])
+    .default('tender_rfq_date')
+    .describe('Which date field to filter on'),
+  user_id: z.number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Filter by salesperson user ID'),
+  team_id: z.number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Filter by sales team ID'),
+  state_id: z.number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Filter by Australian state/territory ID'),
+  min_revenue: z.number()
+    .min(0)
+    .optional()
+    .describe('Minimum expected revenue'),
+  max_revenue: z.number()
+    .min(0)
+    .optional()
+    .describe('Maximum expected revenue'),
+  stage_id: z.number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Filter by stage ID. Use odoo_crm_list_stages to discover IDs.'),
+  stage_name: z.string()
+    .optional()
+    .describe('Filter by stage name (case-insensitive partial match). Alternative to stage_id. E.g., "Tender RFQ"'),
+  include_no_color: z.boolean()
+    .default(false)
+    .describe('Include RFQs where no color was detected in description'),
+  order_by: z.enum(['tender_rfq_date', 'expected_revenue', 'create_date', 'name'])
+    .default('tender_rfq_date')
+    .describe('Field to sort by'),
+  order_dir: z.enum(['asc', 'desc'])
+    .default('desc')
+    .describe('Sort direction')
+}).strict();
+
 // Export inferred types
 export type LeadSearchInput = z.infer<typeof LeadSearchSchema>;
 export type LeadDetailInput = z.infer<typeof LeadDetailSchema>;
@@ -818,152 +944,5 @@ export type StatesListInput = z.infer<typeof StatesListSchema>;
 export type CompareStatesInput = z.infer<typeof CompareStatesSchema>;
 export type CacheStatusInput = z.infer<typeof CacheStatusSchema>;
 export type HealthCheckInput = z.infer<typeof HealthCheckSchema>;
-
-// =============================================================================
-// VECTOR TOOL SCHEMAS
-// =============================================================================
-
-import { SIMILARITY_THRESHOLDS } from '../constants.js';
-
-/**
- * Schema for semantic search tool.
- */
-export const SemanticSearchSchema = z.object({
-  query: z.string()
-    .min(10, 'Query must be at least 10 characters')
-    .max(500, 'Query too long (max 500 characters)')
-    .describe("Natural language search query. Examples: 'education projects similar to university jobs', 'large commercial HVAC projects we lost to competitors'"),
-
-  limit: z.number()
-    .int()
-    .min(1)
-    .max(50)
-    .default(10)
-    .describe('Number of results to return'),
-
-  min_similarity: z.number()
-    .min(0)
-    .max(1)
-    .default(SIMILARITY_THRESHOLDS.DEFAULT_MIN)
-    .describe('Minimum similarity score (0-1). Default 0.6 = meaningfully similar'),
-
-  // Filters
-  stage_id: z.number().int().positive().optional()
-    .describe('Filter by pipeline stage ID'),
-
-  user_id: z.number().int().positive().optional()
-    .describe('Filter by salesperson ID'),
-
-  team_id: z.number().int().positive().optional()
-    .describe('Filter by sales team ID'),
-
-  is_won: z.boolean().optional()
-    .describe('Filter for won opportunities only'),
-
-  is_lost: z.boolean().optional()
-    .describe('Filter for lost opportunities only'),
-
-  min_revenue: z.number().optional()
-    .describe('Minimum expected revenue'),
-
-  max_revenue: z.number().optional()
-    .describe('Maximum expected revenue'),
-
-  state_id: z.number().int().positive().optional()
-    .describe('Filter by Australian state/territory ID'),
-
-  sector: z.string().optional()
-    .describe('Filter by sector name'),
-
-  response_format: z.nativeEnum(ResponseFormat).default(ResponseFormat.MARKDOWN)
-    .describe('Output format: markdown, json, or csv'),
-}).strict();
-export type SemanticSearchInput = z.infer<typeof SemanticSearchSchema>;
-
-/**
- * Schema for find similar deals tool.
- */
-export const FindSimilarDealsSchema = z.object({
-  lead_id: z.number()
-    .int()
-    .positive()
-    .describe('The Odoo opportunity ID to find similar records for'),
-
-  limit: z.number()
-    .int()
-    .min(1)
-    .max(20)
-    .default(5)
-    .describe('Number of similar opportunities to return'),
-
-  include_outcomes: z.array(z.enum(['won', 'lost', 'active']))
-    .default(['won', 'lost', 'active'])
-    .describe('Which outcomes to include in results'),
-
-  exclude_same_partner: z.boolean()
-    .default(false)
-    .describe('Exclude opportunities from the same partner/company'),
-
-  response_format: z.nativeEnum(ResponseFormat).default(ResponseFormat.MARKDOWN),
-}).strict();
-export type FindSimilarDealsInput = z.infer<typeof FindSimilarDealsSchema>;
-
-/**
- * Schema for discover patterns tool.
- */
-export const DiscoverPatternsSchema = z.object({
-  analysis_type: z.enum(['lost_reasons', 'winning_factors', 'deal_segments', 'objection_themes'])
-    .describe('Type of pattern analysis to perform'),
-
-  num_clusters: z.number()
-    .int()
-    .min(2)
-    .max(10)
-    .default(5)
-    .describe('Number of pattern clusters to identify'),
-
-  // Filters
-  sector: z.string().optional()
-    .describe('Focus on specific sector'),
-
-  min_revenue: z.number().optional()
-    .describe('Minimum revenue threshold (e.g., 55000000 for $55M+)'),
-
-  date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
-    .describe('Start date for analysis (YYYY-MM-DD)'),
-
-  date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
-    .describe('End date for analysis (YYYY-MM-DD)'),
-
-  response_format: z.nativeEnum(ResponseFormat).default(ResponseFormat.MARKDOWN),
-}).strict();
-export type DiscoverPatternsInput = z.infer<typeof DiscoverPatternsSchema>;
-
-/**
- * Schema for sync embeddings tool.
- */
-export const SyncEmbeddingsSchema = z.object({
-  action: z.enum(['status', 'sync_new', 'full_rebuild', 'sync_record'])
-    .describe("'status' checks sync state, 'sync_new' syncs changed records, 'full_rebuild' rebuilds entire index, 'sync_record' syncs specific record"),
-
-  lead_id: z.number().int().positive().optional()
-    .describe('For sync_record action: the specific lead ID to sync'),
-
-  batch_size: z.number()
-    .int()
-    .min(10)
-    .max(500)
-    .default(200)
-    .describe('For full_rebuild: records per batch'),
-}).strict();
-export type SyncEmbeddingsInput = z.infer<typeof SyncEmbeddingsSchema>;
-
-/**
- * Schema for vector status tool.
- */
-export const VectorStatusSchema = z.object({
-  include_sample: z.boolean()
-    .default(false)
-    .describe('Include a sample vector for debugging'),
-}).strict();
-export type VectorStatusInput = z.infer<typeof VectorStatusSchema>;
+export type ColorTrendsInput = z.infer<typeof ColorTrendsSchema>;
+export type RfqByColorSearchInput = z.infer<typeof RfqByColorSearchSchema>;

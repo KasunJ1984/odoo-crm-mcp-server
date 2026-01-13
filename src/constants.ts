@@ -60,22 +60,15 @@ export const CRM_FIELDS = {
     'lead_source_id', 'sector', 'specification_id'
   ] as string[],
   
-  // Detailed fields for single record views (including custom fields for embeddings)
+  // Detailed fields for single record views
   LEAD_DETAIL: [
-    // Core fields
     'id', 'name', 'contact_name', 'email_from', 'phone', 'mobile',
     'street', 'city', 'state_id', 'country_id', 'expected_revenue', 'probability',
     'stage_id', 'user_id', 'team_id', 'source_id', 'medium_id',
     'campaign_id', 'description', 'create_date', 'write_date',
     'date_deadline', 'date_closed', 'lost_reason_id', 'tag_ids',
     'partner_id', 'company_id', 'priority', 'type', 'active',
-    'lead_source_id', 'sector', 'specification_id', 'won_status',
-    // Additional standard fields for embeddings
-    'zip', 'function', 'partner_name',
-    // Custom fields (will be undefined if not present in Odoo instance)
-    'architect_id', 'client_id', 'estimator_id', 'project_manager_id',
-    'spec_rep_id', 'design', 'quote', 'referred',
-    'address_note', 'project_address', 'x_studio_building_owner',
+    'lead_source_id', 'sector', 'specification_id'
   ] as string[],
   
   // Fields for pipeline analysis
@@ -151,6 +144,13 @@ export const CRM_FIELDS = {
   // State/Territory fields (for geographic analysis)
   STATE_LIST: [
     'id', 'name', 'code', 'country_id'
+  ] as string[],
+
+  // RFQ/Color fields for tender analysis
+  RFQ_COLOR_FIELDS: [
+    'id', 'name', 'contact_name', 'email_from', 'expected_revenue',
+    'stage_id', 'user_id', 'team_id', 'description', 'tender_rfq_date',
+    'create_date', 'date_closed', 'city', 'state_id', 'partner_id'
   ] as string[]
 };
 
@@ -313,139 +313,62 @@ export const POOL_CONFIG = {
 } as const;
 
 // =============================================================================
-// VECTOR DATABASE CONFIGURATION (Qdrant + Voyage AI)
+// COLOR EXTRACTION - Taxonomy and patterns for RFQ color analysis
 // =============================================================================
 
 /**
- * Qdrant vector database configuration
+ * Color taxonomy mapping raw color names to standard categories.
+ * Used to normalize extracted colors for consistent trend analysis.
  */
-export const QDRANT_CONFIG = {
-  // Connection settings
-  HOST: process.env.QDRANT_HOST || 'http://localhost:6333',
-  API_KEY: process.env.QDRANT_API_KEY || '',
-  COLLECTION_NAME: process.env.QDRANT_COLLECTION || 'odoo_crm_leads',
-
-  // Vector settings (voyage-3-lite supports 512 dims only)
-  VECTOR_SIZE: parseInt(process.env.EMBEDDING_DIMENSIONS || '512'),
-  DISTANCE_METRIC: 'Cosine' as const,
-
-  // HNSW index settings (create BEFORE data upload)
-  HNSW_M: 16,                    // Number of bi-directional links
-  HNSW_EF_CONSTRUCT: 100,        // Size of dynamic candidate list
-
-  // Payload indexes to create
-  PAYLOAD_INDEXES: [
-    // Existing indexes
-    { field: 'stage_id', type: 'integer' as const },
-    { field: 'user_id', type: 'integer' as const },
-    { field: 'team_id', type: 'integer' as const },
-    { field: 'expected_revenue', type: 'float' as const },
-    { field: 'is_won', type: 'bool' as const },
-    { field: 'is_lost', type: 'bool' as const },
-    { field: 'is_active', type: 'bool' as const },
-    { field: 'create_date', type: 'datetime' as const },
-    { field: 'sector', type: 'keyword' as const },
-    { field: 'lost_reason_id', type: 'integer' as const },
-    // NEW indexes for common filtering (Phase 2)
-    { field: 'partner_id', type: 'integer' as const },
-    { field: 'country_id', type: 'integer' as const },
-    { field: 'priority', type: 'keyword' as const },
-    { field: 'architect_id', type: 'integer' as const },
-    { field: 'source_id', type: 'integer' as const },
-  ],
-
-  // Enabled flag
-  ENABLED: process.env.VECTOR_ENABLED !== 'false',
+export const COLOR_TAXONOMY: Record<string, string[]> = {
+  'White': ['white', 'off-white', 'ivory', 'cream', 'pearl', 'snow', 'alabaster'],
+  'Black': ['black', 'charcoal', 'onyx', 'ebony', 'jet', 'midnight'],
+  'Grey': ['grey', 'gray', 'silver', 'slate', 'ash', 'graphite', 'pewter', 'steel'],
+  'Blue': ['blue', 'navy', 'navy blue', 'cobalt', 'azure', 'teal', 'turquoise', 'sapphire', 'indigo', 'cyan', 'royal blue', 'sky blue'],
+  'Brown': ['brown', 'tan', 'beige', 'chocolate', 'coffee', 'espresso', 'mocha', 'taupe', 'bronze', 'copper', 'caramel', 'walnut'],
+  'Green': ['green', 'olive', 'sage', 'mint', 'forest', 'emerald', 'lime', 'hunter', 'moss', 'seafoam'],
+  'Red': ['red', 'maroon', 'burgundy', 'crimson', 'scarlet', 'ruby', 'wine', 'cherry', 'brick'],
+  'Yellow': ['yellow', 'gold', 'golden', 'amber', 'mustard', 'lemon', 'canary', 'honey'],
+  'Orange': ['orange', 'terracotta', 'rust', 'coral', 'peach', 'apricot', 'tangerine', 'burnt orange'],
+  'Pink': ['pink', 'rose', 'blush', 'magenta', 'fuchsia', 'salmon', 'hot pink', 'dusty pink'],
+  'Purple': ['purple', 'violet', 'lavender', 'plum', 'mauve', 'lilac', 'grape', 'amethyst'],
+  'Other': [] // Catch-all for unrecognized colors
 } as const;
 
 /**
- * Voyage AI embedding configuration
+ * Regex patterns for extracting colors from description text.
+ * SPECIFIED patterns are highest priority (industry specs like "9610 Pure Ash")
+ * EXPLICIT patterns are reliable (e.g., "Color: Navy Blue")
+ * CONTEXTUAL patterns catch standalone color words.
  */
-export const VOYAGE_CONFIG = {
-  API_KEY: process.env.VOYAGE_API_KEY || '',
-  MODEL: process.env.EMBEDDING_MODEL || 'voyage-3-lite',
-  DIMENSIONS: parseInt(process.env.EMBEDDING_DIMENSIONS || '512'),  // voyage-3-lite max
-
-  // Input types (improves retrieval quality)
-  INPUT_TYPE_DOCUMENT: 'document' as const,
-  INPUT_TYPE_QUERY: 'query' as const,
-
-  // Batch settings
-  MAX_BATCH_SIZE: 128,
-  MAX_TOKENS_PER_BATCH: 120000,
-
-  // Text handling
-  MAX_WORDS: 2000,               // Truncate descriptions longer than this
-  TRUNCATION: true,
+export const COLOR_PATTERNS = {
+  // NEW: Industry specification pattern - "Specified Colours = 9610 Pure Ash, White Pearl"
+  SPECIFIED_COLORS: /Specified\s+Colou?rs?\s*[=:]\s*([^\n\r]+)/gi,
+  // Match "color:" or "colour:" or "paint:" followed by color name
+  EXPLICIT: /(?:colou?r|paint|finish|shade|panel|panels)[\s:]+([a-zA-Z\s-]+?)(?:[,\.\n\r]|$)/gi,
+  // Match common color words as standalone terms
+  CONTEXTUAL: /\b(white|off-white|black|charcoal|grey|gray|silver|blue|navy|teal|brown|tan|beige|green|olive|red|maroon|burgundy|yellow|gold|orange|coral|pink|rose|purple|violet|lavender|cream|ivory)\b/gi
 } as const;
 
 /**
- * Sync service configuration
+ * Known product color codes mapped to color names and categories.
+ * This lookup is used when only a numeric code is provided (e.g., "9610").
+ * Can be extended or loaded from external source in future.
  */
-export const VECTOR_SYNC_CONFIG = {
-  ENABLED: process.env.VECTOR_SYNC_ENABLED !== 'false',
-  INTERVAL_MS: parseInt(process.env.VECTOR_SYNC_INTERVAL_MS || '900000'), // 15 min
-  BATCH_SIZE: parseInt(process.env.VECTOR_SYNC_BATCH_SIZE || '200'),
-  MAX_RECORDS_PER_SYNC: 10000,
+export const PRODUCT_COLOR_CODES: Record<string, { name: string; category: string }> = {
+  '9610': { name: 'Pure Ash', category: 'Grey' },
+  '2440': { name: 'Deep Ocean', category: 'Blue' },
+  '1001': { name: 'Classic White', category: 'White' },
+  '2001': { name: 'Night Sky', category: 'Black' },
+  // Add more codes as discovered from RFQ data
 } as const;
 
 /**
- * Similarity score thresholds
- * Research shows 0.5 is too low - use 0.6 as default
+ * Color categories enum for schema validation
  */
-export const SIMILARITY_THRESHOLDS = {
-  VERY_SIMILAR: 0.8,             // Near duplicate
-  MEANINGFULLY_SIMILAR: 0.6,     // Good match (default min)
-  LOOSELY_RELATED: 0.4,          // Weak match
-  DEFAULT_MIN: 0.6,              // Default minimum score
-} as const;
+export const COLOR_CATEGORIES = [
+  'White', 'Black', 'Grey', 'Blue', 'Brown', 'Green',
+  'Red', 'Yellow', 'Orange', 'Pink', 'Purple', 'Other', 'Unknown'
+] as const;
 
-/**
- * Circuit breaker for vector services
- */
-export const VECTOR_CIRCUIT_BREAKER_CONFIG = {
-  FAILURE_THRESHOLD: 3,          // Open after 3 failures
-  RESET_TIMEOUT_MS: 30000,       // Try again after 30s
-  HALF_OPEN_MAX_ATTEMPTS: 1,
-} as const;
-
-// =============================================================================
-// SELECTION FIELD LABEL MAPPINGS (for embedding text generation)
-// =============================================================================
-
-/**
- * Priority field labels.
- * Odoo stores priority as '0', '1', '2', '3' strings.
- */
-export const PRIORITY_LABELS: Record<string, string> = {
-  '0': 'Low',
-  '1': 'Medium',
-  '2': 'High',
-  '3': 'Very High',
-  'false': '',
-};
-
-/**
- * Won status labels.
- * Maps Odoo's won_status selection field values.
- */
-export const WON_STATUS_LABELS: Record<string, string> = {
-  'won': 'Won',
-  'lost': 'Lost',
-  'pending': 'In Progress',
-  'false': '',
-};
-
-/**
- * Helper to get human-readable label from selection field.
- * Returns empty string if value not found (graceful handling).
- */
-export function getSelectionLabel(
-  mappings: Record<string, string>,
-  value: string | undefined | null | boolean
-): string {
-  if (value === undefined || value === null || value === false) {
-    return '';
-  }
-  return mappings[String(value)] || String(value);
-}
+export type ColorCategory = typeof COLOR_CATEGORIES[number];

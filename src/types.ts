@@ -48,28 +48,6 @@ export interface CrmLead extends OdooRecord {
   lead_source_id?: [number, string];
   sector?: string;
   specification_id?: [number, string];
-  won_status?: string;  // Odoo native field: 'won' | 'lost' | 'pending'
-
-  // Additional standard fields
-  zip?: string;
-  function?: string;  // Job position/title
-  partner_name?: string;  // Partner display name (convenience field)
-
-  // Custom many2one fields (may not exist in all Odoo instances)
-  // These return [id, name] tuples if present, undefined if field doesn't exist
-  architect_id?: [number, string];
-  client_id?: [number, string];
-  estimator_id?: [number, string];
-  project_manager_id?: [number, string];
-  spec_rep_id?: [number, string];
-
-  // Custom text/char fields
-  design?: string;
-  quote?: string;
-  referred?: string;
-  address_note?: string;
-  project_address?: string;
-  x_studio_building_owner?: string;
 }
 
 // CRM Stage
@@ -634,315 +612,134 @@ export interface StateComparison {
   };
 }
 
-// ============================================
-// Vector Database Types (for Qdrant + Voyage)
-// ============================================
+// =============================================================================
+// COLOR ANALYSIS TYPES - For RFQ color trends and analysis
+// =============================================================================
 
 /**
- * Configuration for Qdrant vector database connection
+ * Result of extracting a color from description text
  */
-export interface VectorConfig {
-  host: string;              // QDRANT_HOST - e.g., "http://localhost:6333"
-  apiKey?: string;           // QDRANT_API_KEY - optional for local, required for cloud
-  collectionName: string;    // QDRANT_COLLECTION - e.g., "odoo_crm_leads"
+export interface ColorExtraction {
+  /** The exact color text extracted (e.g., "navy blue") */
+  raw_color: string | null;
+  /** Normalized category (e.g., "Blue") */
+  color_category: string;
+  /** How the color was detected */
+  extraction_source: 'explicit' | 'contextual' | 'none';
 }
 
 /**
- * Configuration for Voyage AI embedding service
+ * Structured color specification from industry product codes
+ * Example: "9610 Pure Ash" => { code: "9610", name: "Pure Ash", full_spec: "9610 Pure Ash" }
  */
-export interface EmbeddingConfig {
-  apiKey: string;            // VOYAGE_API_KEY
-  model: string;             // EMBEDDING_MODEL - "voyage-3-lite"
-  dimensions: number;        // EMBEDDING_DIMENSIONS - 512 (voyage-3-lite)
+export interface ProductColorSpecification {
+  /** Numeric product code (e.g., "9610", "2440") - null if no code */
+  color_code: string | null;
+  /** Color name without code (e.g., "Pure Ash", "White Pearl") */
+  color_name: string;
+  /** Original full specification as written */
+  full_specification: string;
+  /** Normalized category (e.g., "Grey" for "Pure Ash") */
+  color_category: string;
 }
 
 /**
- * Metadata stored with each vector in Qdrant.
- * These fields enable filtering and are returned with search results.
+ * Enhanced color extraction result with multi-color support
+ * Used for industry specifications like "Specified Colours = 9610 Pure Ash, White Pearl"
  */
-export interface VectorMetadata {
-  // Core identifiers
-  odoo_id: number;           // Original Odoo record ID
-  name: string;              // Opportunity name
-
-  // Stage and pipeline
-  stage_id: number;
-  stage_name: string;
-
-  // Assignment
-  user_id: number;
-  user_name: string;
-  team_id?: number;
-  team_name?: string;
-
-  // Business metrics
-  expected_revenue: number;
-  probability: number;
-
-  // Status flags (for filtering)
-  is_won: boolean;
-  is_lost: boolean;
-  is_active: boolean;
-
-  // Classification
-  sector?: string;
-  specification_id?: number;
-  specification_name?: string;
-  lead_source_id?: number;
-  lead_source_name?: string;
-
-  // Location
-  city?: string;
-  state_id?: number;
-  state_name?: string;
-
-  // Lost analysis
-  lost_reason_id?: number;
-  lost_reason_name?: string;
-
-  // Timestamps
-  create_date: string;
-  write_date: string;        // For sync conflict detection
-  date_closed?: string;
-
-  // Sync tracking
-  sync_version: number;
-  last_synced: string;
-  truncated?: boolean;       // True if description was truncated
-
-  // Original text (for display, not filtering)
-  embedding_text: string;
-
-  // === NEW FIELDS FOR SEARCH RESULTS (Phase 2) ===
-
-  // Partner/Company (CRITICAL for B2B)
-  partner_id?: number;
-  partner_name?: string;
-
-  // Contact Information
-  contact_name?: string;
-  function?: string;           // Job role/position
-  email_from?: string;
-  phone?: string;
-  mobile?: string;
-
-  // Extended Location
-  street?: string;
-  zip?: string;
-  country_id?: number;
-  country_name?: string;
-  project_address?: string;
-
-  // UTM Attribution
-  source_id?: number;
-  source_name?: string;
-  medium_id?: number;
-  medium_name?: string;
-  campaign_id?: number;
-  campaign_name?: string;
-  referred?: string;
-
-  // Priority (with label)
-  priority?: string;
-  priority_label?: string;
-
-  // Custom Role Fields (may not exist in all Odoo instances)
-  architect_id?: number;
-  architect_name?: string;
-  client_id?: number;
-  client_name?: string;
-  estimator_id?: number;
-  estimator_name?: string;
-  project_manager_id?: number;
-  project_manager_name?: string;
-  spec_rep_id?: number;
-  spec_rep_name?: string;
-
-  // Custom Text Fields
-  x_studio_building_owner?: string;
-  design?: string;
-  quote?: string;
-  address_note?: string;
+export interface EnhancedColorExtraction {
+  /** Primary color (first extracted or most prominent) */
+  primary: ProductColorSpecification | null;
+  /** All colors found in description */
+  all_colors: ProductColorSpecification[];
+  /** How colors were detected: 'specified' for industry specs, 'explicit'/'contextual' for generic */
+  extraction_source: 'specified' | 'explicit' | 'contextual' | 'none';
+  /** Total color count */
+  color_count: number;
 }
 
 /**
- * A single vector record to upsert into Qdrant
+ * CRM Lead extended with color extraction data
  */
-export interface VectorRecord {
-  id: string;                // String ID (Odoo ID as string)
-  values: number[];          // 512-dimensional embedding vector (voyage-3-lite)
-  metadata: VectorMetadata;
+export interface LeadWithColor extends CrmLead {
+  /** Extracted color information */
+  color: ColorExtraction;
+  /** RFQ tender date (custom field) */
+  tender_rfq_date?: string;
 }
 
 /**
- * Options for vector similarity search
+ * CRM Lead with enhanced multi-color extraction data
+ * Includes both legacy 'color' field and new 'colors' field for backward compatibility
  */
-export interface VectorQueryOptions {
-  vector: number[];          // Query embedding
-  topK: number;              // Number of results (1-50)
-  filter?: VectorFilter;     // Optional metadata filters
-  minScore?: number;         // Minimum similarity score (default 0.6)
-  includeMetadata?: boolean; // Include metadata in results (default true)
+export interface LeadWithEnhancedColor extends CrmLead {
+  /** Enhanced color extraction with multi-color support */
+  colors: EnhancedColorExtraction;
+  /** Legacy: kept for backward compatibility */
+  color: ColorExtraction;
+  /** RFQ tender date (custom field) */
+  tender_rfq_date?: string;
 }
 
 /**
- * Filter conditions for Qdrant queries.
- * Supports exact match, arrays ($in), and ranges.
+ * Color statistics for a single time period
  */
-export interface VectorFilter {
-  // Existing filters
-  stage_id?: number | { $in: number[] };
-  user_id?: number | { $in: number[] };
-  team_id?: number;
-  is_won?: boolean;
-  is_lost?: boolean;
-  is_active?: boolean;
-  state_id?: number;
-  sector?: string;
-  lost_reason_id?: number;
-  expected_revenue?: { $gte?: number; $lte?: number };
-  create_date?: { $gte?: string; $lte?: string };
-
-  // NEW filters (Phase 2)
-  partner_id?: number | { $in: number[] };
-  country_id?: number;
-  priority?: string;
-  architect_id?: number;
-  source_id?: number;
-}
-
-/**
- * A single match from vector search
- */
-export interface VectorMatch {
-  id: string;
-  score: number;             // Cosine similarity (0-1)
-  metadata?: VectorMetadata;
-}
-
-/**
- * Result of a vector search query
- */
-export interface VectorQueryResult {
-  matches: VectorMatch[];
-  searchTimeMs: number;
-}
-
-/**
- * Progress tracking during sync operations
- */
-export interface SyncProgress {
-  phase: 'fetching' | 'embedding' | 'upserting' | 'deleting';
-  currentBatch: number;
-  totalBatches: number;
-  recordsProcessed: number;
-  totalRecords: number;
-  percentComplete: number;
-  elapsedMs: number;
-  estimatedRemainingMs?: number;
-}
-
-/**
- * Result of a sync operation
- */
-export interface SyncResult {
-  success: boolean;
-  recordsSynced: number;
-  recordsFailed: number;
-  recordsDeleted: number;
-  durationMs: number;
-  syncVersion: number;
-  errors?: string[];
-}
-
-/**
- * Current status of vector infrastructure
- */
-export interface VectorStatus {
-  enabled: boolean;
-  qdrantConnected: boolean;
-  voyageConnected: boolean;
-  collectionName: string;
-  totalVectors: number;
-  lastSync: string | null;
-  syncVersion: number;
-  circuitBreakerState: 'CLOSED' | 'OPEN' | 'HALF_OPEN';
-  errorMessage?: string;
-}
-
-/**
- * A semantic search result with enriched lead data
- */
-export interface SemanticMatch {
-  lead: CrmLead;             // Full Odoo lead record
-  similarityScore: number;   // Raw cosine similarity (0-1)
-  similarityPercent: number; // Human-readable percentage
-  matchExplanation: string;  // e.g., "92% match - Very similar"
-}
-
-/**
- * Complete result of semantic search
- */
-export interface SemanticSearchResult {
-  items: SemanticMatch[];
-  total: number;
-  queryEmbeddingMs: number;
-  vectorSearchMs: number;
-  odooEnrichmentMs: number;
-  searchMode: 'semantic' | 'hybrid';
-}
-
-/**
- * A cluster of similar opportunities (for pattern discovery)
- */
-export interface PatternCluster {
-  clusterId: number;
-  size: number;
-  centroidDistance: number;  // Average distance to centroid
-  representativeDeals: Array<{
-    id: number;
-    name: string;
-    similarity: number;
-    // Enhanced semantic fields (optional - populated from VectorMetadata)
-    partner_name?: string;
-    stage_name?: string;
-    expected_revenue?: number;
-    city?: string;
-    state_name?: string;
-    sector?: string;
-    specification_name?: string;
-    is_won?: boolean;
-    is_lost?: boolean;
-    lost_reason_name?: string;
+export interface ColorTrendPeriod {
+  /** Period label (e.g., "Jan 2025", "2025-Q1") */
+  period_label: string;
+  /** Color breakdown for this period */
+  colors: Array<{
+    color_category: string;
+    raw_colors: string[];
+    count: number;
+    revenue: number;
+    percentage: number;
   }>;
-  commonThemes: {
-    topSectors: Array<{ sector: string; count: number }>;
-    topLostReasons: Array<{ reason: string; count: number }>;
-    avgRevenue: number;
-    revenueRange: { min: number; max: number };
+  /** Total RFQs in this period */
+  total_count: number;
+  /** Total revenue in this period */
+  total_revenue: number;
+}
+
+/**
+ * Complete color trends analysis summary
+ */
+export interface ColorTrendsSummary {
+  [key: string]: unknown;
+  /** Date range analyzed */
+  period: string;
+  /** Time grouping used */
+  granularity: 'month' | 'quarter';
+  /** Period-by-period breakdown */
+  periods: ColorTrendPeriod[];
+  /** Overall statistics */
+  overall_summary: {
+    top_color: string;
+    top_color_count: number;
+    top_color_percentage: number;
+    total_rfqs_with_color: number;
+    total_rfqs_without_color: number;
+    color_detection_rate: number;
   };
-  summary: string;           // AI-generated cluster description
+  /** Distribution across all colors */
+  color_distribution: Array<{
+    color_category: string;
+    count: number;
+    percentage: number;
+    avg_revenue: number;
+  }>;
+  /** Trend direction for each color */
+  color_trends?: Array<{
+    color_category: string;
+    trend: 'up' | 'down' | 'stable';
+    change_percent: number;
+  }>;
 }
 
 /**
- * Result of pattern discovery analysis
+ * Paginated search results for RFQs filtered by color
  */
-export interface PatternDiscoveryResult {
-  analysisType: 'lost_reasons' | 'winning_factors' | 'deal_segments' | 'objection_themes';
-  totalRecordsAnalyzed: number;
-  numClusters: number;
-  clusters: PatternCluster[];
-  insights: string[];        // Key insights across all clusters
-  durationMs: number;
-}
-
-/**
- * Circuit breaker state for resilience
- */
-export interface CircuitBreakerState {
-  state: 'CLOSED' | 'OPEN' | 'HALF_OPEN';
-  failures: number;
-  lastFailure: number | null;
-  lastStateChange: number;
-  secondsUntilRetry?: number;
+export interface RfqSearchResult extends PaginatedResponse<LeadWithColor> {
+  /** Which color filter was applied, if any */
+  color_filter_applied: string | null;
 }

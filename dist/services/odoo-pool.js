@@ -262,6 +262,9 @@ export async function resetPool() {
  * Warm the pool by pre-creating minimum clients.
  * Called on server startup for faster first requests.
  *
+ * NOTE: This is now completely non-blocking and won't crash on failures.
+ * If Odoo is unavailable, the server will still start and retry on first request.
+ *
  * @returns Success/failure counts for monitoring
  *
  * @example
@@ -274,20 +277,27 @@ export async function warmPool() {
     const startTime = Date.now();
     let success = 0;
     let failed = 0;
-    // Acquire and release MIN clients to trigger creation
-    const promises = [];
-    for (let i = 0; i < POOL_CONFIG.MIN; i++) {
-        promises.push(acquireClient()
-            .then(async (client) => {
-            await releaseClient(client);
-            success++;
-        })
-            .catch((err) => {
-            console.error(`[Pool] Warm-up client ${i + 1} failed:`, err instanceof Error ? err.message : err);
-            failed++;
-        }));
+    try {
+        // Acquire and release MIN clients to trigger creation
+        const promises = [];
+        for (let i = 0; i < POOL_CONFIG.MIN; i++) {
+            promises.push(acquireClient()
+                .then(async (client) => {
+                await releaseClient(client);
+                success++;
+            })
+                .catch((err) => {
+                console.error(`[Pool] Warm-up client ${i + 1} failed:`, err instanceof Error ? err.message : err);
+                failed++;
+            }));
+        }
+        await Promise.all(promises);
     }
-    await Promise.all(promises);
+    catch (err) {
+        // Catch any unexpected errors during warmup
+        console.error('[Pool] Warm-up encountered error (non-fatal):', err instanceof Error ? err.message : err);
+        failed = POOL_CONFIG.MIN;
+    }
     const elapsed = Date.now() - startTime;
     console.error(`[Pool] Warm-up complete: ${success} ready, ${failed} failed (${elapsed}ms)`);
     return { success, failed };

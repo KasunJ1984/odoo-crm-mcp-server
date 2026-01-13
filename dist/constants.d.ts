@@ -31,6 +31,7 @@ export declare const CRM_FIELDS: {
     USER_LIST: string[];
     TEAM_LIST: string[];
     STATE_LIST: string[];
+    RFQ_COLOR_FIELDS: string[];
 };
 export declare enum ResponseFormat {
     JSON = "json",
@@ -97,118 +98,33 @@ export declare const POOL_CONFIG: {
     readonly FIFO: true;
 };
 /**
- * Qdrant vector database configuration
+ * Color taxonomy mapping raw color names to standard categories.
+ * Used to normalize extracted colors for consistent trend analysis.
  */
-export declare const QDRANT_CONFIG: {
-    readonly HOST: string;
-    readonly API_KEY: string;
-    readonly COLLECTION_NAME: string;
-    readonly VECTOR_SIZE: number;
-    readonly DISTANCE_METRIC: "Cosine";
-    readonly HNSW_M: 16;
-    readonly HNSW_EF_CONSTRUCT: 100;
-    readonly PAYLOAD_INDEXES: readonly [{
-        readonly field: "stage_id";
-        readonly type: "integer";
-    }, {
-        readonly field: "user_id";
-        readonly type: "integer";
-    }, {
-        readonly field: "team_id";
-        readonly type: "integer";
-    }, {
-        readonly field: "expected_revenue";
-        readonly type: "float";
-    }, {
-        readonly field: "is_won";
-        readonly type: "bool";
-    }, {
-        readonly field: "is_lost";
-        readonly type: "bool";
-    }, {
-        readonly field: "is_active";
-        readonly type: "bool";
-    }, {
-        readonly field: "create_date";
-        readonly type: "datetime";
-    }, {
-        readonly field: "sector";
-        readonly type: "keyword";
-    }, {
-        readonly field: "lost_reason_id";
-        readonly type: "integer";
-    }, {
-        readonly field: "partner_id";
-        readonly type: "integer";
-    }, {
-        readonly field: "country_id";
-        readonly type: "integer";
-    }, {
-        readonly field: "priority";
-        readonly type: "keyword";
-    }, {
-        readonly field: "architect_id";
-        readonly type: "integer";
-    }, {
-        readonly field: "source_id";
-        readonly type: "integer";
-    }];
-    readonly ENABLED: boolean;
+export declare const COLOR_TAXONOMY: Record<string, string[]>;
+/**
+ * Regex patterns for extracting colors from description text.
+ * SPECIFIED patterns are highest priority (industry specs like "9610 Pure Ash")
+ * EXPLICIT patterns are reliable (e.g., "Color: Navy Blue")
+ * CONTEXTUAL patterns catch standalone color words.
+ */
+export declare const COLOR_PATTERNS: {
+    readonly SPECIFIED_COLORS: RegExp;
+    readonly EXPLICIT: RegExp;
+    readonly CONTEXTUAL: RegExp;
 };
 /**
- * Voyage AI embedding configuration
+ * Known product color codes mapped to color names and categories.
+ * This lookup is used when only a numeric code is provided (e.g., "9610").
+ * Can be extended or loaded from external source in future.
  */
-export declare const VOYAGE_CONFIG: {
-    readonly API_KEY: string;
-    readonly MODEL: string;
-    readonly DIMENSIONS: number;
-    readonly INPUT_TYPE_DOCUMENT: "document";
-    readonly INPUT_TYPE_QUERY: "query";
-    readonly MAX_BATCH_SIZE: 128;
-    readonly MAX_TOKENS_PER_BATCH: 120000;
-    readonly MAX_WORDS: 2000;
-    readonly TRUNCATION: true;
-};
+export declare const PRODUCT_COLOR_CODES: Record<string, {
+    name: string;
+    category: string;
+}>;
 /**
- * Sync service configuration
+ * Color categories enum for schema validation
  */
-export declare const VECTOR_SYNC_CONFIG: {
-    readonly ENABLED: boolean;
-    readonly INTERVAL_MS: number;
-    readonly BATCH_SIZE: number;
-    readonly MAX_RECORDS_PER_SYNC: 10000;
-};
-/**
- * Similarity score thresholds
- * Research shows 0.5 is too low - use 0.6 as default
- */
-export declare const SIMILARITY_THRESHOLDS: {
-    readonly VERY_SIMILAR: 0.8;
-    readonly MEANINGFULLY_SIMILAR: 0.6;
-    readonly LOOSELY_RELATED: 0.4;
-    readonly DEFAULT_MIN: 0.6;
-};
-/**
- * Circuit breaker for vector services
- */
-export declare const VECTOR_CIRCUIT_BREAKER_CONFIG: {
-    readonly FAILURE_THRESHOLD: 3;
-    readonly RESET_TIMEOUT_MS: 30000;
-    readonly HALF_OPEN_MAX_ATTEMPTS: 1;
-};
-/**
- * Priority field labels.
- * Odoo stores priority as '0', '1', '2', '3' strings.
- */
-export declare const PRIORITY_LABELS: Record<string, string>;
-/**
- * Won status labels.
- * Maps Odoo's won_status selection field values.
- */
-export declare const WON_STATUS_LABELS: Record<string, string>;
-/**
- * Helper to get human-readable label from selection field.
- * Returns empty string if value not found (graceful handling).
- */
-export declare function getSelectionLabel(mappings: Record<string, string>, value: string | undefined | null | boolean): string;
+export declare const COLOR_CATEGORIES: readonly ["White", "Black", "Grey", "Blue", "Brown", "Green", "Red", "Yellow", "Orange", "Pink", "Purple", "Other", "Unknown"];
+export type ColorCategory = typeof COLOR_CATEGORIES[number];
 //# sourceMappingURL=constants.d.ts.map

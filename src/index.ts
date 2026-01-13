@@ -4,11 +4,22 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import express from 'express';
 import { registerCrmTools } from './tools/crm-tools.js';
-import { registerVectorTools } from './tools/vector-tools.js';
 import { warmCache } from './services/odoo-client.js';
 import { warmPool } from './services/odoo-pool.js';
-import { warmVectorClient } from './services/vector-client.js';
-import { initializeEmbeddingService } from './services/embedding-service.js';
+
+// ============================================
+// Global Error Handlers - Prevent crashes
+// ============================================
+process.on('uncaughtException', (error) => {
+  console.error('[FATAL] Uncaught exception (server will continue):', error.message);
+  // Don't exit - keep the server running
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[WARN] Unhandled promise rejection (server will continue):',
+    reason instanceof Error ? reason.message : reason);
+  // Don't exit - keep the server running
+});
 
 // Create MCP server instance
 const server = new McpServer({
@@ -19,10 +30,6 @@ const server = new McpServer({
 // Register all CRM tools
 registerCrmTools(server);
 
-// Register vector tools (semantic search, pattern discovery, etc.)
-// These will only be active if VECTOR_ENABLED=true in environment
-registerVectorTools(server);
-
 // ============================================
 // STDIO Transport (for desktop Claude, Claude Code)
 // ============================================
@@ -31,17 +38,9 @@ async function runStdio(): Promise<void> {
   await server.connect(transport);
   console.error('Odoo CRM MCP Server running on stdio');
 
-  // Warm cache, connection pool, and vector services asynchronously (non-blocking)
-  Promise.all([
-    warmCache(),
-    warmPool(),
-    // Initialize vector services (embedding + vector DB)
-    (async () => {
-      initializeEmbeddingService();
-      await warmVectorClient();
-    })()
-  ])
-    .then(() => console.error('Cache, pool, and vector services warmed successfully'))
+  // Warm cache and connection pool asynchronously (non-blocking)
+  Promise.all([warmCache(), warmPool()])
+    .then(() => console.error('Cache and pool warmed successfully'))
     .catch(err => console.error('Warm-up error:', err instanceof Error ? err.message : err));
 }
 
@@ -97,17 +96,9 @@ async function runHTTP(): Promise<void> {
     console.error('Environment variables required:');
     console.error('  ODOO_URL, ODOO_DB, ODOO_USERNAME, ODOO_PASSWORD');
 
-    // Warm cache, connection pool, and vector services asynchronously (non-blocking)
-    Promise.all([
-      warmCache(),
-      warmPool(),
-      // Initialize vector services (embedding + vector DB)
-      (async () => {
-        initializeEmbeddingService();
-        await warmVectorClient();
-      })()
-    ])
-      .then(() => console.error('Cache, pool, and vector services warmed successfully'))
+    // Warm cache and connection pool asynchronously (non-blocking)
+    Promise.all([warmCache(), warmPool()])
+      .then(() => console.error('Cache and pool warmed successfully'))
       .catch(err => console.error('Warm-up error:', err instanceof Error ? err.message : err));
   });
 }

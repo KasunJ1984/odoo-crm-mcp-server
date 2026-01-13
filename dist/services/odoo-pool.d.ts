@@ -136,6 +136,9 @@ export declare function resetPool(): Promise<void>;
  * Warm the pool by pre-creating minimum clients.
  * Called on server startup for faster first requests.
  *
+ * NOTE: This is now completely non-blocking and won't crash on failures.
+ * If Odoo is unavailable, the server will still start and retry on first request.
+ *
  * @returns Success/failure counts for monitoring
  *
  * @example

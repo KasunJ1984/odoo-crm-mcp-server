@@ -16,6 +16,7 @@ import { fullSync, incrementalSync, syncRecord, getVectorStatus, isSyncInProgres
 import { discoverPatterns } from '../services/clustering-service.js';
 import { useClient } from '../services/odoo-pool.js';
 import { formatSemanticSearchResults, formatSimilarDeals, formatPatternDiscovery, formatSyncResult, formatVectorStatus, } from '../services/formatters.js';
+import { isMemoryRecording, captureInteraction } from '../services/memory-service.js';
 // Error message templates
 const ERROR_TEMPLATES = {
     QDRANT_UNAVAILABLE: (retrySeconds) => `**Semantic Search Unavailable**
@@ -128,6 +129,10 @@ Try:
             });
             // Format output
             const output = formatSemanticSearchResults(searchResult.matches, leads, input.query, input.response_format);
+            // Auto-capture if memory recording is active
+            if (isMemoryRecording()) {
+                captureInteraction('odoo_crm_semantic_search', input, output);
+            }
             return { content: [{ type: 'text', text: output }] };
         }
         catch (error) {
@@ -184,6 +189,10 @@ Try:
                 return client.searchRead('crm.lead', [['id', 'in', leadIds]], CRM_FIELDS.LEAD_DETAIL);
             });
             const output = formatSimilarDeals(matches, leads, refPoint.metadata, input.response_format);
+            // Auto-capture if memory recording is active
+            if (isMemoryRecording()) {
+                captureInteraction('odoo_crm_find_similar_deals', input, output);
+            }
             return { content: [{ type: 'text', text: output }] };
         }
         catch (error) {
@@ -212,6 +221,10 @@ Try:
                 min_revenue: input.min_revenue,
             }, input.num_clusters);
             const output = formatPatternDiscovery(result, input.response_format);
+            // Auto-capture if memory recording is active
+            if (isMemoryRecording()) {
+                captureInteraction('odoo_crm_discover_patterns', input, output);
+            }
             return { content: [{ type: 'text', text: output }] };
         }
         catch (error) {
@@ -263,8 +276,13 @@ Try:
                 }
                 result = await syncRecord(input.lead_id);
             }
+            const output = formatSyncResult(result);
+            // Auto-capture if memory recording is active
+            if (isMemoryRecording()) {
+                captureInteraction('odoo_crm_sync_embeddings', input, output);
+            }
             return {
-                content: [{ type: 'text', text: formatSyncResult(result) }],
+                content: [{ type: 'text', text: output }],
             };
         }
         catch (error) {
@@ -283,8 +301,13 @@ Try:
 
     Returns connection status, vector count, sync state, and circuit breaker status.`, VectorStatusSchema.shape, async (args) => {
         try {
+            const input = VectorStatusSchema.parse(args);
             const status = await getVectorStatus();
             const output = formatVectorStatus(status);
+            // Auto-capture if memory recording is active
+            if (isMemoryRecording()) {
+                captureInteraction('odoo_crm_vector_status', input, output);
+            }
             return { content: [{ type: 'text', text: output }] };
         }
         catch (error) {

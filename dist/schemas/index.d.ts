@@ -105,10 +105,9 @@ export declare const LeadSearchSchema: z.ZodObject<{
     city?: string | undefined;
     state_id?: number | undefined;
     type?: "lead" | "opportunity" | undefined;
-    query?: string | undefined;
     stage_name?: string | undefined;
     fields?: string[] | "basic" | "extended" | "full" | undefined;
-    state_name?: string | undefined;
+    query?: string | undefined;
     min_revenue?: number | undefined;
     max_revenue?: number | undefined;
     min_probability?: number | undefined;
@@ -116,6 +115,7 @@ export declare const LeadSearchSchema: z.ZodObject<{
     date_to?: string | undefined;
     date_closed_from?: string | undefined;
     date_closed_to?: string | undefined;
+    state_name?: string | undefined;
 }, {
     stage_id?: number | undefined;
     user_id?: number | undefined;
@@ -126,13 +126,12 @@ export declare const LeadSearchSchema: z.ZodObject<{
     city?: string | undefined;
     state_id?: number | undefined;
     type?: "lead" | "opportunity" | undefined;
-    query?: string | undefined;
     offset?: number | undefined;
     limit?: number | undefined;
     stage_name?: string | undefined;
     fields?: string[] | "basic" | "extended" | "full" | undefined;
-    state_name?: string | undefined;
     response_format?: ResponseFormat | undefined;
+    query?: string | undefined;
     min_revenue?: number | undefined;
     max_revenue?: number | undefined;
     min_probability?: number | undefined;
@@ -142,6 +141,7 @@ export declare const LeadSearchSchema: z.ZodObject<{
     date_closed_from?: string | undefined;
     date_closed_to?: string | undefined;
     date_field?: "create_date" | "date_closed" | undefined;
+    state_name?: string | undefined;
     order_by?: "name" | "expected_revenue" | "probability" | "create_date" | "date_closed" | undefined;
     order_dir?: "asc" | "desc" | undefined;
 }>;
@@ -218,22 +218,22 @@ export declare const ContactSearchSchema: z.ZodObject<{
     response_format: ResponseFormat;
     city?: string | undefined;
     state_id?: number | undefined;
-    query?: string | undefined;
     is_company?: boolean | undefined;
     fields?: string[] | "basic" | "extended" | "full" | undefined;
+    query?: string | undefined;
     state_name?: string | undefined;
     has_opportunities?: boolean | undefined;
     country?: string | undefined;
 }, {
     city?: string | undefined;
     state_id?: number | undefined;
-    query?: string | undefined;
     is_company?: boolean | undefined;
     offset?: number | undefined;
     limit?: number | undefined;
     fields?: string[] | "basic" | "extended" | "full" | undefined;
-    state_name?: string | undefined;
     response_format?: ResponseFormat | undefined;
+    query?: string | undefined;
+    state_name?: string | undefined;
     has_opportunities?: boolean | undefined;
     country?: string | undefined;
 }>;
@@ -343,14 +343,14 @@ export declare const LostOpportunitiesSearchSchema: z.ZodObject<{
     city?: string | undefined;
     state_id?: number | undefined;
     lost_reason_id?: number | undefined;
-    query?: string | undefined;
     fields?: string[] | "basic" | "extended" | "full" | undefined;
-    lost_reason_name?: string | undefined;
-    state_name?: string | undefined;
+    query?: string | undefined;
     min_revenue?: number | undefined;
     max_revenue?: number | undefined;
     date_from?: string | undefined;
     date_to?: string | undefined;
+    state_name?: string | undefined;
+    lost_reason_name?: string | undefined;
 }, {
     stage_id?: number | undefined;
     user_id?: number | undefined;
@@ -361,19 +361,19 @@ export declare const LostOpportunitiesSearchSchema: z.ZodObject<{
     city?: string | undefined;
     state_id?: number | undefined;
     lost_reason_id?: number | undefined;
-    query?: string | undefined;
     offset?: number | undefined;
     limit?: number | undefined;
     fields?: string[] | "basic" | "extended" | "full" | undefined;
-    lost_reason_name?: string | undefined;
-    state_name?: string | undefined;
     response_format?: ResponseFormat | undefined;
+    query?: string | undefined;
     min_revenue?: number | undefined;
     max_revenue?: number | undefined;
     date_from?: string | undefined;
     date_to?: string | undefined;
+    state_name?: string | undefined;
     order_by?: "name" | "expected_revenue" | "create_date" | "date_closed" | undefined;
     order_dir?: "asc" | "desc" | undefined;
+    lost_reason_name?: string | undefined;
 }>;
 export declare const LostTrendsSchema: z.ZodObject<{
     date_from: z.ZodOptional<z.ZodString>;
@@ -384,7 +384,7 @@ export declare const LostTrendsSchema: z.ZodObject<{
     compare_to_won: z.ZodDefault<z.ZodBoolean>;
     response_format: z.ZodDefault<z.ZodNativeEnum<typeof ResponseFormat>>;
 }, "strict", z.ZodTypeAny, {
-    granularity: "month" | "week" | "quarter";
+    granularity: "month" | "quarter" | "week";
     response_format: ResponseFormat;
     compare_to_won: boolean;
     user_id?: number | undefined;
@@ -394,7 +394,7 @@ export declare const LostTrendsSchema: z.ZodObject<{
 }, {
     user_id?: number | undefined;
     team_id?: number | undefined;
-    granularity?: "month" | "week" | "quarter" | undefined;
+    granularity?: "month" | "quarter" | "week" | undefined;
     response_format?: ResponseFormat | undefined;
     date_from?: string | undefined;
     date_to?: string | undefined;
@@ -436,13 +436,13 @@ export declare const WonOpportunitiesSearchSchema: z.ZodObject<{
     specification_id?: number | undefined;
     city?: string | undefined;
     state_id?: number | undefined;
-    query?: string | undefined;
     fields?: string[] | "basic" | "extended" | "full" | undefined;
-    state_name?: string | undefined;
+    query?: string | undefined;
     min_revenue?: number | undefined;
     max_revenue?: number | undefined;
     date_from?: string | undefined;
     date_to?: string | undefined;
+    state_name?: string | undefined;
 }, {
     stage_id?: number | undefined;
     user_id?: number | undefined;
@@ -452,16 +452,16 @@ export declare const WonOpportunitiesSearchSchema: z.ZodObject<{
     specification_id?: number | undefined;
     city?: string | undefined;
     state_id?: number | undefined;
-    query?: string | undefined;
     offset?: number | undefined;
     limit?: number | undefined;
     fields?: string[] | "basic" | "extended" | "full" | undefined;
-    state_name?: string | undefined;
     response_format?: ResponseFormat | undefined;
+    query?: string | undefined;
     min_revenue?: number | undefined;
     max_revenue?: number | undefined;
     date_from?: string | undefined;
     date_to?: string | undefined;
+    state_name?: string | undefined;
     order_by?: "name" | "expected_revenue" | "create_date" | "date_closed" | undefined;
     order_dir?: "asc" | "desc" | undefined;
 }>;
@@ -502,7 +502,7 @@ export declare const WonTrendsSchema: z.ZodObject<{
     compare_to_lost: z.ZodDefault<z.ZodBoolean>;
     response_format: z.ZodDefault<z.ZodNativeEnum<typeof ResponseFormat>>;
 }, "strict", z.ZodTypeAny, {
-    granularity: "month" | "week" | "quarter";
+    granularity: "month" | "quarter" | "week";
     response_format: ResponseFormat;
     compare_to_lost: boolean;
     user_id?: number | undefined;
@@ -512,7 +512,7 @@ export declare const WonTrendsSchema: z.ZodObject<{
 }, {
     user_id?: number | undefined;
     team_id?: number | undefined;
-    granularity?: "month" | "week" | "quarter" | undefined;
+    granularity?: "month" | "quarter" | "week" | undefined;
     response_format?: ResponseFormat | undefined;
     date_from?: string | undefined;
     date_to?: string | undefined;
@@ -626,11 +626,11 @@ export declare const ExportDataSchema: z.ZodObject<{
         city?: string | undefined;
         state_id?: number | undefined;
         query?: string | undefined;
-        state_name?: string | undefined;
         min_revenue?: number | undefined;
         max_revenue?: number | undefined;
         date_from?: string | undefined;
         date_to?: string | undefined;
+        state_name?: string | undefined;
     }, {
         stage_id?: number | undefined;
         user_id?: number | undefined;
@@ -638,11 +638,11 @@ export declare const ExportDataSchema: z.ZodObject<{
         city?: string | undefined;
         state_id?: number | undefined;
         query?: string | undefined;
-        state_name?: string | undefined;
         min_revenue?: number | undefined;
         max_revenue?: number | undefined;
         date_from?: string | undefined;
         date_to?: string | undefined;
+        state_name?: string | undefined;
     }>>;
     fields: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
     max_records: z.ZodDefault<z.ZodNumber>;
@@ -661,11 +661,11 @@ export declare const ExportDataSchema: z.ZodObject<{
         city?: string | undefined;
         state_id?: number | undefined;
         query?: string | undefined;
-        state_name?: string | undefined;
         min_revenue?: number | undefined;
         max_revenue?: number | undefined;
         date_from?: string | undefined;
         date_to?: string | undefined;
+        state_name?: string | undefined;
     } | undefined;
     output_directory?: string | undefined;
 }, {
@@ -680,11 +680,11 @@ export declare const ExportDataSchema: z.ZodObject<{
         city?: string | undefined;
         state_id?: number | undefined;
         query?: string | undefined;
-        state_name?: string | undefined;
         min_revenue?: number | undefined;
         max_revenue?: number | undefined;
         date_from?: string | undefined;
         date_to?: string | undefined;
+        state_name?: string | undefined;
     } | undefined;
     max_records?: number | undefined;
     output_directory?: string | undefined;
@@ -726,10 +726,10 @@ export declare const CacheStatusSchema: z.ZodObject<{
     cache_type: z.ZodDefault<z.ZodEnum<["all", "stages", "lost_reasons", "teams", "salespeople", "states"]>>;
 }, "strict", z.ZodTypeAny, {
     action: "clear" | "status";
-    cache_type: "salespeople" | "teams" | "states" | "lost_reasons" | "stages" | "all";
+    cache_type: "salespeople" | "teams" | "states" | "stages" | "lost_reasons" | "all";
 }, {
     action?: "clear" | "status" | undefined;
-    cache_type?: "salespeople" | "teams" | "states" | "lost_reasons" | "stages" | "all" | undefined;
+    cache_type?: "salespeople" | "teams" | "states" | "stages" | "lost_reasons" | "all" | undefined;
 }>;
 export declare const HealthCheckSchema: z.ZodObject<{
     response_format: z.ZodDefault<z.ZodNativeEnum<typeof ResponseFormat>>;
@@ -737,6 +737,113 @@ export declare const HealthCheckSchema: z.ZodObject<{
     response_format: ResponseFormat;
 }, {
     response_format?: ResponseFormat | undefined;
+}>;
+/**
+ * Schema for color trends analysis tool.
+ * Analyzes color mentions in opportunity descriptions over time.
+ */
+export declare const ColorTrendsSchema: z.ZodObject<{
+    date_from: z.ZodOptional<z.ZodString>;
+    date_to: z.ZodOptional<z.ZodString>;
+    date_field: z.ZodDefault<z.ZodEnum<["create_date", "tender_rfq_date", "date_closed"]>>;
+    granularity: z.ZodDefault<z.ZodEnum<["month", "quarter"]>>;
+    user_id: z.ZodOptional<z.ZodNumber>;
+    team_id: z.ZodOptional<z.ZodNumber>;
+    state_id: z.ZodOptional<z.ZodNumber>;
+    min_revenue: z.ZodOptional<z.ZodNumber>;
+    stage_id: z.ZodOptional<z.ZodNumber>;
+    stage_name: z.ZodOptional<z.ZodString>;
+    response_format: z.ZodDefault<z.ZodNativeEnum<typeof ResponseFormat>>;
+}, "strict", z.ZodTypeAny, {
+    granularity: "month" | "quarter";
+    response_format: ResponseFormat;
+    date_field: "create_date" | "date_closed" | "tender_rfq_date";
+    stage_id?: number | undefined;
+    user_id?: number | undefined;
+    team_id?: number | undefined;
+    state_id?: number | undefined;
+    stage_name?: string | undefined;
+    min_revenue?: number | undefined;
+    date_from?: string | undefined;
+    date_to?: string | undefined;
+}, {
+    stage_id?: number | undefined;
+    user_id?: number | undefined;
+    team_id?: number | undefined;
+    state_id?: number | undefined;
+    stage_name?: string | undefined;
+    granularity?: "month" | "quarter" | undefined;
+    response_format?: ResponseFormat | undefined;
+    min_revenue?: number | undefined;
+    date_from?: string | undefined;
+    date_to?: string | undefined;
+    date_field?: "create_date" | "date_closed" | "tender_rfq_date" | undefined;
+}>;
+/**
+ * Schema for RFQ search by color tool.
+ * Searches opportunities filtered by extracted color information.
+ */
+export declare const RfqByColorSearchSchema: z.ZodObject<{
+    limit: z.ZodDefault<z.ZodNumber>;
+    offset: z.ZodDefault<z.ZodNumber>;
+    response_format: z.ZodDefault<z.ZodNativeEnum<typeof ResponseFormat>>;
+} & {
+    color_category: z.ZodOptional<z.ZodEnum<[string, ...string[]]>>;
+    color_code: z.ZodOptional<z.ZodString>;
+    raw_color: z.ZodOptional<z.ZodString>;
+    date_from: z.ZodOptional<z.ZodString>;
+    date_to: z.ZodOptional<z.ZodString>;
+    date_field: z.ZodDefault<z.ZodEnum<["create_date", "tender_rfq_date", "date_closed"]>>;
+    user_id: z.ZodOptional<z.ZodNumber>;
+    team_id: z.ZodOptional<z.ZodNumber>;
+    state_id: z.ZodOptional<z.ZodNumber>;
+    min_revenue: z.ZodOptional<z.ZodNumber>;
+    max_revenue: z.ZodOptional<z.ZodNumber>;
+    stage_id: z.ZodOptional<z.ZodNumber>;
+    stage_name: z.ZodOptional<z.ZodString>;
+    include_no_color: z.ZodDefault<z.ZodBoolean>;
+    order_by: z.ZodDefault<z.ZodEnum<["tender_rfq_date", "expected_revenue", "create_date", "name"]>>;
+    order_dir: z.ZodDefault<z.ZodEnum<["asc", "desc"]>>;
+}, "strict", z.ZodTypeAny, {
+    offset: number;
+    limit: number;
+    response_format: ResponseFormat;
+    date_field: "create_date" | "date_closed" | "tender_rfq_date";
+    order_by: "name" | "expected_revenue" | "create_date" | "tender_rfq_date";
+    order_dir: "asc" | "desc";
+    include_no_color: boolean;
+    stage_id?: number | undefined;
+    user_id?: number | undefined;
+    team_id?: number | undefined;
+    state_id?: number | undefined;
+    stage_name?: string | undefined;
+    color_code?: string | undefined;
+    color_category?: string | undefined;
+    min_revenue?: number | undefined;
+    max_revenue?: number | undefined;
+    date_from?: string | undefined;
+    date_to?: string | undefined;
+    raw_color?: string | undefined;
+}, {
+    stage_id?: number | undefined;
+    user_id?: number | undefined;
+    team_id?: number | undefined;
+    state_id?: number | undefined;
+    offset?: number | undefined;
+    limit?: number | undefined;
+    stage_name?: string | undefined;
+    color_code?: string | undefined;
+    color_category?: string | undefined;
+    response_format?: ResponseFormat | undefined;
+    min_revenue?: number | undefined;
+    max_revenue?: number | undefined;
+    date_from?: string | undefined;
+    date_to?: string | undefined;
+    date_field?: "create_date" | "date_closed" | "tender_rfq_date" | undefined;
+    order_by?: "name" | "expected_revenue" | "create_date" | "tender_rfq_date" | undefined;
+    order_dir?: "asc" | "desc" | undefined;
+    raw_color?: string | undefined;
+    include_no_color?: boolean | undefined;
 }>;
 export type LeadSearchInput = z.infer<typeof LeadSearchSchema>;
 export type LeadDetailInput = z.infer<typeof LeadDetailSchema>;
@@ -761,131 +868,6 @@ export type StatesListInput = z.infer<typeof StatesListSchema>;
 export type CompareStatesInput = z.infer<typeof CompareStatesSchema>;
 export type CacheStatusInput = z.infer<typeof CacheStatusSchema>;
 export type HealthCheckInput = z.infer<typeof HealthCheckSchema>;
-/**
- * Schema for semantic search tool.
- */
-export declare const SemanticSearchSchema: z.ZodObject<{
-    query: z.ZodString;
-    limit: z.ZodDefault<z.ZodNumber>;
-    min_similarity: z.ZodDefault<z.ZodNumber>;
-    stage_id: z.ZodOptional<z.ZodNumber>;
-    user_id: z.ZodOptional<z.ZodNumber>;
-    team_id: z.ZodOptional<z.ZodNumber>;
-    is_won: z.ZodOptional<z.ZodBoolean>;
-    is_lost: z.ZodOptional<z.ZodBoolean>;
-    min_revenue: z.ZodOptional<z.ZodNumber>;
-    max_revenue: z.ZodOptional<z.ZodNumber>;
-    state_id: z.ZodOptional<z.ZodNumber>;
-    sector: z.ZodOptional<z.ZodString>;
-    response_format: z.ZodDefault<z.ZodNativeEnum<typeof ResponseFormat>>;
-}, "strict", z.ZodTypeAny, {
-    query: string;
-    limit: number;
-    response_format: ResponseFormat;
-    min_similarity: number;
-    stage_id?: number | undefined;
-    user_id?: number | undefined;
-    team_id?: number | undefined;
-    sector?: string | undefined;
-    state_id?: number | undefined;
-    is_won?: boolean | undefined;
-    is_lost?: boolean | undefined;
-    min_revenue?: number | undefined;
-    max_revenue?: number | undefined;
-}, {
-    query: string;
-    stage_id?: number | undefined;
-    user_id?: number | undefined;
-    team_id?: number | undefined;
-    sector?: string | undefined;
-    state_id?: number | undefined;
-    is_won?: boolean | undefined;
-    is_lost?: boolean | undefined;
-    limit?: number | undefined;
-    response_format?: ResponseFormat | undefined;
-    min_revenue?: number | undefined;
-    max_revenue?: number | undefined;
-    min_similarity?: number | undefined;
-}>;
-export type SemanticSearchInput = z.infer<typeof SemanticSearchSchema>;
-/**
- * Schema for find similar deals tool.
- */
-export declare const FindSimilarDealsSchema: z.ZodObject<{
-    lead_id: z.ZodNumber;
-    limit: z.ZodDefault<z.ZodNumber>;
-    include_outcomes: z.ZodDefault<z.ZodArray<z.ZodEnum<["won", "lost", "active"]>, "many">>;
-    exclude_same_partner: z.ZodDefault<z.ZodBoolean>;
-    response_format: z.ZodDefault<z.ZodNativeEnum<typeof ResponseFormat>>;
-}, "strict", z.ZodTypeAny, {
-    limit: number;
-    response_format: ResponseFormat;
-    lead_id: number;
-    include_outcomes: ("active" | "lost" | "won")[];
-    exclude_same_partner: boolean;
-}, {
-    lead_id: number;
-    limit?: number | undefined;
-    response_format?: ResponseFormat | undefined;
-    include_outcomes?: ("active" | "lost" | "won")[] | undefined;
-    exclude_same_partner?: boolean | undefined;
-}>;
-export type FindSimilarDealsInput = z.infer<typeof FindSimilarDealsSchema>;
-/**
- * Schema for discover patterns tool.
- */
-export declare const DiscoverPatternsSchema: z.ZodObject<{
-    analysis_type: z.ZodEnum<["lost_reasons", "winning_factors", "deal_segments", "objection_themes"]>;
-    num_clusters: z.ZodDefault<z.ZodNumber>;
-    sector: z.ZodOptional<z.ZodString>;
-    min_revenue: z.ZodOptional<z.ZodNumber>;
-    date_from: z.ZodOptional<z.ZodString>;
-    date_to: z.ZodOptional<z.ZodString>;
-    response_format: z.ZodDefault<z.ZodNativeEnum<typeof ResponseFormat>>;
-}, "strict", z.ZodTypeAny, {
-    response_format: ResponseFormat;
-    analysis_type: "lost_reasons" | "winning_factors" | "deal_segments" | "objection_themes";
-    num_clusters: number;
-    sector?: string | undefined;
-    min_revenue?: number | undefined;
-    date_from?: string | undefined;
-    date_to?: string | undefined;
-}, {
-    analysis_type: "lost_reasons" | "winning_factors" | "deal_segments" | "objection_themes";
-    sector?: string | undefined;
-    response_format?: ResponseFormat | undefined;
-    min_revenue?: number | undefined;
-    date_from?: string | undefined;
-    date_to?: string | undefined;
-    num_clusters?: number | undefined;
-}>;
-export type DiscoverPatternsInput = z.infer<typeof DiscoverPatternsSchema>;
-/**
- * Schema for sync embeddings tool.
- */
-export declare const SyncEmbeddingsSchema: z.ZodObject<{
-    action: z.ZodEnum<["status", "sync_new", "full_rebuild", "sync_record"]>;
-    lead_id: z.ZodOptional<z.ZodNumber>;
-    batch_size: z.ZodDefault<z.ZodNumber>;
-}, "strict", z.ZodTypeAny, {
-    action: "status" | "sync_new" | "full_rebuild" | "sync_record";
-    batch_size: number;
-    lead_id?: number | undefined;
-}, {
-    action: "status" | "sync_new" | "full_rebuild" | "sync_record";
-    lead_id?: number | undefined;
-    batch_size?: number | undefined;
-}>;
-export type SyncEmbeddingsInput = z.infer<typeof SyncEmbeddingsSchema>;
-/**
- * Schema for vector status tool.
- */
-export declare const VectorStatusSchema: z.ZodObject<{
-    include_sample: z.ZodDefault<z.ZodBoolean>;
-}, "strict", z.ZodTypeAny, {
-    include_sample: boolean;
-}, {
-    include_sample?: boolean | undefined;
-}>;
-export type VectorStatusInput = z.infer<typeof VectorStatusSchema>;
+export type ColorTrendsInput = z.infer<typeof ColorTrendsSchema>;
+export type RfqByColorSearchInput = z.infer<typeof RfqByColorSearchSchema>;
 //# sourceMappingURL=index.d.ts.map

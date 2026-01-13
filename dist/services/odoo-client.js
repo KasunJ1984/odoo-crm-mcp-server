@@ -115,18 +115,17 @@ export class OdooClient {
     }
     // Search and read records with pagination
     async searchRead(model, domain = [], fields = [], options = {}) {
-        const { offset = 0, limit = 10, order = 'id desc', context } = options;
+        const { offset = 0, limit = 10, order = 'id desc' } = options;
         return this.execute(model, 'search_read', [domain], {
             fields,
             offset,
             limit,
-            order,
-            context,
+            order
         });
     }
     // Count records matching domain
-    async searchCount(model, domain = [], context) {
-        return this.execute(model, 'search_count', [domain], context ? { context } : {});
+    async searchCount(model, domain = []) {
+        return this.execute(model, 'search_count', [domain]);
     }
     // Read specific records by IDs
     async read(model, ids, fields = []) {
@@ -153,7 +152,7 @@ export class OdooClient {
         const batchSize = options.batchSize || EXPORT_CONFIG.BATCH_SIZE;
         const startTime = Date.now();
         // First, count total available records
-        const totalAvailable = await this.searchCount(model, domain, options.context);
+        const totalAvailable = await this.searchCount(model, domain);
         // Cap at maxRecords
         const recordsToFetch = Math.min(totalAvailable, options.maxRecords);
         const totalBatches = Math.ceil(recordsToFetch / batchSize);
@@ -166,7 +165,7 @@ export class OdooClient {
             const remaining = recordsToFetch - allRecords.length;
             const limit = Math.min(batchSize, remaining);
             // Fetch batch with extended timeout
-            const batchRecords = await this.searchReadWithTimeout(model, domain, fields, { offset, limit, order: options.order || 'id desc', context: options.context });
+            const batchRecords = await this.searchReadWithTimeout(model, domain, fields, { offset, limit, order: options.order || 'id desc' });
             allRecords.push(...batchRecords);
             offset += limit;
             // Report progress
@@ -204,7 +203,6 @@ export class OdooClient {
             offset: options.offset,
             limit: options.limit,
             order: options.order,
-            context: options.context,
         })), TIMEOUTS.EXPORT_BATCH, `Export batch timed out (offset: ${options.offset}, limit: ${options.limit})`);
     }
     // ============================================================================

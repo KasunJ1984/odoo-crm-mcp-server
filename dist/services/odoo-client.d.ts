@@ -23,9 +23,8 @@ export declare class OdooClient {
         offset?: number;
         limit?: number;
         order?: string;
-        context?: Record<string, unknown>;
     }): Promise<T[]>;
-    searchCount(model: string, domain?: unknown[], context?: Record<string, unknown>): Promise<number>;
+    searchCount(model: string, domain?: unknown[]): Promise<number>;
     read<T extends OdooRecord>(model: string, ids: number[], fields?: string[]): Promise<T[]>;
     readGroup(model: string, domain?: unknown[], fields?: string[], groupby?: string[], options?: {
         offset?: number;
@@ -43,7 +42,6 @@ export declare class OdooClient {
         batchSize?: number;
         order?: string;
         onProgress?: ExportProgressCallback;
-        context?: Record<string, unknown>;
     }): Promise<{
         records: T[];
         totalFetched: number;
