@@ -165,7 +165,16 @@ export const LeadSearchSchema = PaginationSchema.extend({
     order_dir: z.enum(['asc', 'desc'])
         .default('desc')
         .describe('Sort direction'),
-    fields: FieldsParam
+    fields: FieldsParam,
+    days_inactive: z.number()
+        .int()
+        .min(1)
+        .max(365)
+        .optional()
+        .describe('Filter leads with no updates in X days. Uses write_date field. Use when users ask about "stuck deals", "stale opportunities", or "needs follow-up".'),
+    include_activity_fields: z.boolean()
+        .default(false)
+        .describe('Include activity recency fields in output: last_activity_date, days_since_activity, days_in_current_stage, is_stale. Use when users want to see activity status.')
 }).strict();
 // Single lead detail schema
 export const LeadDetailSchema = z.object({
@@ -193,6 +202,9 @@ export const PipelineSummarySchema = z.object({
     include_lost: z.boolean()
         .default(false)
         .describe('Include lost opportunities in summary'),
+    include_weighted: z.boolean()
+        .default(false)
+        .describe('Include probability-weighted revenue calculations. When true, adds weighted_revenue per stage and total_weighted_pipeline summary. Use when users ask about "expected revenue", "weighted pipeline", or "forecasted close value".'),
     max_opps_per_stage: z.number()
         .int()
         .min(0)
@@ -227,6 +239,16 @@ export const SalesAnalyticsSchema = z.object({
         .max(10)
         .default(5)
         .describe('Number of top opportunities to include (0-10)'),
+    include_stage_duration: z.boolean()
+        .default(false)
+        .describe('Include average days spent in each pipeline stage. Uses milestone date fields. Flags the bottleneck stage. Use when users ask "how long in each stage?", "what\'s the bottleneck?", or "where do deals get stuck?"'),
+    include_velocity: z.boolean()
+        .default(false)
+        .describe('Include pipeline velocity metrics: deals per month, revenue per month, average cycle days. Use when users ask about "pipeline velocity", "throughput", or "deal flow rate"'),
+    target_amount: z.number()
+        .positive()
+        .optional()
+        .describe('Target revenue amount to track against. When provided, calculates gap to target, percent complete, and status (on_track/at_risk/behind). Use when users ask "are we on track to target?", "gap to goal?"'),
     response_format: z.nativeEnum(ResponseFormat)
         .default(ResponseFormat.MARKDOWN)
         .describe("Output format: 'markdown' or 'json'")
@@ -320,6 +342,10 @@ export const LostAnalysisSchema = z.object({
         .positive()
         .optional()
         .describe('Filter by specific lost reason ID'),
+    lost_reason_name: z.string()
+        .max(100)
+        .optional()
+        .describe('Filter by lost reason name (partial match). Use for competitor analysis, e.g., "Competitor X" to find deals lost to that competitor. Use when users ask "win rate against [competitor]?" or "why do we lose to [competitor]?"'),
     stage_id: z.number()
         .int()
         .positive()
@@ -555,6 +581,9 @@ export const WonAnalysisSchema = z.object({
         .max(20)
         .default(5)
         .describe('Number of top won deals to include (0-20)'),
+    include_conversion_rates: z.boolean()
+        .default(false)
+        .describe('Include stage-to-stage conversion rate analysis using milestone dates. Shows overall conversion rate and identifies biggest drop-off point. Use when users ask "what\'s our conversion rate?", "where do we lose deals?", or "funnel analysis"'),
     response_format: z.nativeEnum(ResponseFormat)
         .default(ResponseFormat.MARKDOWN)
         .describe("Output format: 'markdown' or 'json'")

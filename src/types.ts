@@ -50,6 +50,14 @@ export interface CrmLead extends OdooRecord {
   specification_id?: [number, string];
 }
 
+// CRM Lead with activity recency fields (enriched)
+export interface CrmLeadWithActivity extends CrmLead {
+  // Activity recency fields (calculated, not from Odoo)
+  last_activity_date?: string | null;
+  days_since_activity?: number;
+  is_stale?: boolean;  // true if days_since_activity > 14
+}
+
 // CRM Stage
 export interface CrmStage extends OdooRecord {
   id: number;
@@ -143,6 +151,39 @@ export interface SalesAnalytics {
     probability: number;
     stage: string;
   }>;
+  // Enhanced analytics fields (optional)
+  stage_durations?: StageDuration[];
+  velocity?: VelocityMetrics;
+  target_tracking?: TargetTracking;
+}
+
+// Stage duration analysis
+export interface StageDuration {
+  stage_name: string;
+  stage_sequence: number;
+  avg_days: number;
+  deal_count: number;  // Number of deals that had data for this stage
+  is_bottleneck: boolean;  // True if this is the longest stage
+}
+
+// Pipeline velocity metrics
+export interface VelocityMetrics {
+  deals_per_month: number;
+  revenue_per_month: number;
+  avg_cycle_days: number;
+  period_months: number;
+}
+
+// Target tracking
+export interface TargetTracking {
+  target: number;
+  achieved: number;  // Won revenue in period
+  gap: number;
+  percent_complete: number;
+  days_remaining: number;  // To end of period
+  required_daily_rate: number;
+  current_daily_rate: number;
+  status: 'on_track' | 'at_risk' | 'behind';
 }
 
 // Activity summary
@@ -425,6 +466,21 @@ export interface WonAnalysisSummary {
     date_closed: string;
     sales_cycle_days?: number;
   }>;
+  // Conversion funnel analysis
+  conversion_funnel?: ConversionFunnel;
+}
+
+// Conversion funnel analysis
+export interface ConversionFunnel {
+  overall_conversion_rate: number;  // % of leads that became won
+  stage_conversions: Array<{
+    from_stage: string;
+    to_stage: string;
+    rate: number;  // Percentage that advanced
+    drop_count: number;  // Number that didn't advance
+  }>;
+  biggest_drop: string;  // Stage with largest drop-off, e.g., "Tender RFQ → Tender Estimate"
+  total_leads_analyzed: number;
 }
 
 // Won Trends Summary
@@ -576,6 +632,14 @@ export interface ExportProgress {
 // Pipeline Summary with weighted revenue
 export interface PipelineSummaryWithWeighted extends PipelineSummary {
   weighted_revenue: number;
+}
+
+// Response for weighted pipeline summary
+export interface WeightedPipelineTotals {
+  total_weighted_pipeline: number;  // Sum of all weighted revenues
+  best_case_revenue: number;        // Sum of all expected_revenue (100% close rate)
+  worst_case_revenue: number;       // Sum where probability >= 70%
+  total_deals: number;              // Total count of deals
 }
 
 // Sales Analytics with weighted pipeline

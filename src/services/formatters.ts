@@ -1,5 +1,5 @@
 import { CONTEXT_LIMITS, ResponseFormat, CRM_FIELDS, FIELD_PRESETS } from '../constants.js';
-import type { CrmLead, PaginatedResponse, PipelineSummary, SalesAnalytics, ActivitySummary, ResPartner, LostReasonWithCount, LostAnalysisSummary, LostOpportunity, LostTrendsSummary, WonOpportunity, WonAnalysisSummary, WonTrendsSummary, SalespersonWithStats, SalesTeamWithStats, PerformanceComparison, ActivityDetail, ExportResult, PipelineSummaryWithWeighted, StateWithStats, StateComparison, ColorTrendsSummary, LeadWithColor, LeadWithEnhancedColor, RfqSearchResult } from '../types.js';
+import type { CrmLead, PaginatedResponse, PipelineSummary, SalesAnalytics, ActivitySummary, ResPartner, LostReasonWithCount, LostAnalysisSummary, LostOpportunity, LostTrendsSummary, WonOpportunity, WonAnalysisSummary, WonTrendsSummary, SalespersonWithStats, SalesTeamWithStats, PerformanceComparison, ActivityDetail, ExportResult, PipelineSummaryWithWeighted, WeightedPipelineTotals, StateWithStats, StateComparison, ColorTrendsSummary, LeadWithColor, LeadWithEnhancedColor, RfqSearchResult } from '../types.js';
 import { stripHtml, getContactName } from '../utils/html-utils.js';
 import { formatLinkedName } from '../utils/odoo-urls.js';
 
@@ -952,20 +952,33 @@ export function formatExportResult(result: ExportResult, format: ResponseFormat)
 }
 
 // Format pipeline summary with weighted revenue
-export function formatPipelineSummaryWithWeighted(stages: PipelineSummaryWithWeighted[], format: ResponseFormat): string {
+export function formatPipelineSummaryWithWeighted(
+  stages: PipelineSummaryWithWeighted[],
+  format: ResponseFormat,
+  totals?: WeightedPipelineTotals
+): string {
   if (format === ResponseFormat.JSON) {
-    return JSON.stringify({ stages }, null, 2);
+    return JSON.stringify({ stages, totals }, null, 2);
   }
 
   let output = '## Pipeline Summary (with Weighted Revenue)\n\n';
 
-  const totalRevenue = stages.reduce((sum, s) => sum + s.total_revenue, 0);
-  const totalWeighted = stages.reduce((sum, s) => sum + s.weighted_revenue, 0);
-  const totalCount = stages.reduce((sum, s) => sum + s.count, 0);
+  // Use provided totals or calculate from stages
+  const totalRevenue = totals?.best_case_revenue ?? stages.reduce((sum, s) => sum + s.total_revenue, 0);
+  const totalWeighted = totals?.total_weighted_pipeline ?? stages.reduce((sum, s) => sum + s.weighted_revenue, 0);
+  const totalCount = totals?.total_deals ?? stages.reduce((sum, s) => sum + s.count, 0);
 
-  output += `**Total Pipeline:** ${totalCount} opportunities | ${formatCurrency(totalRevenue)}\n`;
-  output += `**Total Weighted Pipeline:** ${formatCurrency(totalWeighted)}\n\n`;
+  output += `### Forecast Summary\n`;
+  output += `| Scenario | Value | Description |\n`;
+  output += `|----------|-------|-------------|\n`;
+  output += `| **Expected (Weighted)** | ${formatCurrency(totalWeighted)} | Probability-adjusted revenue |\n`;
+  output += `| Best Case | ${formatCurrency(totalRevenue)} | If all deals close at 100% |\n`;
+  if (totals?.worst_case_revenue !== undefined) {
+    output += `| Worst Case | ${formatCurrency(totals.worst_case_revenue)} | Only high-probability (≥70%) deals |\n`;
+  }
+  output += `| Total Deals | ${totalCount} | |\n\n`;
 
+  output += '### Pipeline by Stage\n';
   output += '| Stage | Count | Revenue | Weighted | Avg Prob |\n';
   output += '|-------|-------|---------|----------|----------|\n';
 

@@ -1,6 +1,6 @@
 import { getOdooClient } from '../services/odoo-client.js';
 import { getPoolMetrics, useClient } from '../services/odoo-pool.js';
-import { formatLeadList, formatLeadDetail, formatPipelineSummary, formatSalesAnalytics, formatContactList, formatActivitySummary, getRelationName, formatLostReasonsList, formatLostAnalysis, formatLostOpportunitiesList, formatLostTrends, formatDate, formatWonOpportunitiesList, formatWonAnalysis, formatWonTrends, formatSalespeopleList, formatTeamsList, formatPerformanceComparison, formatActivityList, formatExportResult, formatStatesList, formatStateComparison, formatFieldsList, formatColorTrends, formatRfqByColorList, formatNotesAnalysis } from '../services/formatters.js';
+import { formatLeadList, formatLeadDetail, formatPipelineSummary, formatSalesAnalytics, formatContactList, formatActivitySummary, getRelationName, formatLostReasonsList, formatLostAnalysis, formatLostOpportunitiesList, formatLostTrends, formatDate, formatWonOpportunitiesList, formatWonAnalysis, formatWonTrends, formatSalespeopleList, formatTeamsList, formatPerformanceComparison, formatActivityList, formatExportResult, formatPipelineSummaryWithWeighted, formatStatesList, formatStateComparison, formatFieldsList, formatColorTrends, formatRfqByColorList, formatNotesAnalysis } from '../services/formatters.js';
 import { LeadSearchSchema, LeadDetailSchema, PipelineSummarySchema, SalesAnalyticsSchema, ContactSearchSchema, ActivitySummarySchema, StageListSchema, LostReasonsListSchema, LostAnalysisSchema, LostOpportunitiesSearchSchema, LostTrendsSchema, WonOpportunitiesSearchSchema, WonAnalysisSchema, WonTrendsSchema, SalespeopleListSchema, TeamsListSchema, ComparePerformanceSchema, ActivitySearchSchema, ExportDataSchema, StatesListSchema, CompareStatesSchema, CacheStatusSchema, HealthCheckSchema, ListFieldsSchema, ColorTrendsSchema, RfqByColorSearchSchema, AnalyzeNotesSchema } from '../schemas/index.js';
 import { CRM_FIELDS, CONTEXT_LIMITS, ResponseFormat, EXPORT_CONFIG, FIELD_PRESETS, resolveFields } from '../constants.js';
 import { enrichLeadsWithEnhancedColor, buildColorTrendsSummary, filterLeadsByColor } from '../services/color-service.js';
@@ -20,17 +20,22 @@ export function registerCrmTools(server) {
 
 Use this tool to find leads/opportunities by various criteria. Results are paginated to preserve context window space.
 
-**When to use:**
-- Finding specific leads by name, contact, or email
-- Filtering opportunities by stage, salesperson, or revenue range
-- Browsing pipeline with pagination
+**Key Parameters:**
+- \`days_inactive\`: Filter leads with no updates in X days. Use when users ask about "stuck deals", "stale opportunities", or "needs follow-up"
+- \`include_activity_fields\`: Add activity recency fields (days_since_activity, is_stale) to output
+
+**Handles queries like:**
+- "Which deals are stuck?" → \`days_inactive=14\`
+- "Show stale opportunities" → \`days_inactive=14, include_activity_fields=true\`
+- "Deals needing attention" → \`days_inactive=7, include_activity_fields=true\`
+- "Find big deals not touched in 30 days" → \`days_inactive=30, min_revenue=50000\`
 
 **Context Management Tips:**
 - Start with limit=10 (default) to preview results
 - Use filters to narrow results before increasing limit
 - For large datasets, use odoo_crm_get_pipeline_summary instead
 
-Returns paginated list with: name, contact, email, stage, revenue, probability`,
+Returns paginated list with: name, contact, email, stage, revenue, probability (+ activity fields if requested)`,
         inputSchema: LeadSearchSchema,
         annotations: {
             readOnlyHint: true,
@@ -111,25 +116,54 @@ Returns paginated list with: name, contact, email, stage, revenue, probability`,
                 if (params.city) {
                     domain.push(['city', 'ilike', params.city]);
                 }
+                // Stale deal filter: leads not updated in X days
+                if (params.days_inactive) {
+                    const cutoffDate = getDaysAgoUtc(params.days_inactive, true);
+                    domain.push(['write_date', '<', cutoffDate]);
+                }
                 // Get total count
                 const total = await client.searchCount('crm.lead', domain);
                 // Resolve fields from preset or custom array
-                const fields = resolveFields(params.fields, 'lead', 'basic');
+                let fields = resolveFields(params.fields, 'lead', 'basic');
+                // If activity fields requested, ensure write_date is included
+                if (params.include_activity_fields && !fields.includes('write_date')) {
+                    fields = [...fields, 'write_date'];
+                }
                 // Fetch records
                 const leads = await client.searchRead('crm.lead', domain, fields, {
                     offset: params.offset,
                     limit: params.limit,
                     order: `${params.order_by} ${params.order_dir}`
                 });
+                // Enrich leads with activity fields if requested
+                let enrichedLeads = leads;
+                if (params.include_activity_fields) {
+                    const now = new Date();
+                    enrichedLeads = leads.map((lead) => {
+                        const writeDate = lead.write_date;
+                        let daysSinceActivity;
+                        if (writeDate) {
+                            const lastUpdate = new Date(writeDate);
+                            const diffMs = now.getTime() - lastUpdate.getTime();
+                            daysSinceActivity = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                        }
+                        return {
+                            ...lead,
+                            last_activity_date: writeDate || null,
+                            days_since_activity: daysSinceActivity,
+                            is_stale: daysSinceActivity !== undefined ? daysSinceActivity > 14 : false
+                        };
+                    });
+                }
                 // Build paginated response
                 const response = {
                     total,
-                    count: leads.length,
+                    count: enrichedLeads.length,
                     offset: params.offset,
                     limit: params.limit,
-                    items: leads,
-                    has_more: total > params.offset + leads.length,
-                    next_offset: total > params.offset + leads.length ? params.offset + leads.length : undefined
+                    items: enrichedLeads,
+                    has_more: total > params.offset + enrichedLeads.length,
+                    next_offset: total > params.offset + enrichedLeads.length ? params.offset + enrichedLeads.length : undefined
                 };
                 // Add context note if large dataset
                 if (total > CONTEXT_LIMITS.SUMMARY_THRESHOLD && params.limit < total) {
@@ -210,17 +244,23 @@ Returns all available fields for the lead including description/notes.`,
     // ============================================
     server.registerTool('odoo_crm_get_pipeline_summary', {
         title: 'Get Pipeline Summary',
-        description: `Get aggregated pipeline statistics grouped by stage - ideal for context-efficient overview.
+        description: `Get pipeline overview with stage breakdown. Use \`include_weighted=true\` when users ask about expected/forecasted revenue, weighted pipeline, or probability-adjusted values.
 
-This tool returns summary statistics instead of individual records, making it perfect for understanding pipeline health without consuming context window space.
+**Handles queries like:**
+- "What's our weighted pipeline?"
+- "Expected close value this quarter?"
+- "Best/worst case revenue scenarios?"
+- "Pipeline overview by stage"
+- "How much revenue in each stage?"
 
 **When to use:**
 - Getting pipeline overview
 - Analyzing opportunity distribution across stages
 - Comparing revenue by stage
+- **Forecasting:** Use \`include_weighted=true\` for probability-weighted revenue calculations
 - When there are many opportunities (use this before search)
 
-Returns: count, total revenue, avg probability per stage, plus optional top opportunities per stage.`,
+**Returns:** count, total revenue, avg probability per stage, plus optional top opportunities. With \`include_weighted=true\`: weighted revenue per stage + forecast summary (expected/best/worst case).`,
         inputSchema: PipelineSummarySchema,
         annotations: {
             readOnlyHint: true,
@@ -245,6 +285,11 @@ Returns: count, total revenue, avg probability per stage, plus optional top oppo
             const groupedData = await client.readGroup('crm.lead', domain, ['stage_id', 'expected_revenue:sum', 'probability:avg', 'id:count'], ['stage_id']);
             // Build summary
             const stageSummaries = [];
+            // If weighted calculation requested, we need individual opportunity data
+            let allOpportunities = [];
+            if (params.include_weighted) {
+                allOpportunities = await client.searchRead('crm.lead', domain, ['id', 'name', 'expected_revenue', 'probability', 'stage_id'], { limit: 5000, order: 'expected_revenue desc' });
+            }
             for (const stage of stages) {
                 const stageData = groupedData.find((g) => Array.isArray(g.stage_id) && g.stage_id[0] === stage.id);
                 if (!stageData && !params.include_lost)
@@ -257,6 +302,19 @@ Returns: count, total revenue, avg probability per stage, plus optional top oppo
                     avg_probability: stageData?.probability || 0,
                     opportunities: []
                 };
+                // Calculate weighted revenue for this stage if requested
+                if (params.include_weighted) {
+                    const stageOpps = allOpportunities.filter(o => {
+                        const oppStageId = Array.isArray(o.stage_id) ? o.stage_id[0] : o.stage_id;
+                        return oppStageId === stage.id;
+                    });
+                    const weightedRevenue = stageOpps.reduce((sum, o) => {
+                        const revenue = o.expected_revenue || 0;
+                        const prob = (o.probability || 0) / 100;
+                        return sum + (revenue * prob);
+                    }, 0);
+                    summary.weighted_revenue = weightedRevenue;
+                }
                 // Optionally fetch top opportunities per stage
                 if (params.max_opps_per_stage > 0 && summary.count > 0) {
                     const stageDomain = [...domain, ['stage_id', '=', stage.id]];
@@ -270,10 +328,32 @@ Returns: count, total revenue, avg probability per stage, plus optional top oppo
                 }
                 stageSummaries.push(summary);
             }
-            const output = formatPipelineSummary(stageSummaries, params.response_format);
+            // Calculate weighted totals if requested
+            let weightedTotals;
+            if (params.include_weighted) {
+                const totalWeighted = allOpportunities.reduce((sum, o) => {
+                    return sum + ((o.expected_revenue || 0) * ((o.probability || 0) / 100));
+                }, 0);
+                const totalBestCase = allOpportunities.reduce((sum, o) => sum + (o.expected_revenue || 0), 0);
+                const totalWorstCase = allOpportunities
+                    .filter(o => (o.probability || 0) >= 70)
+                    .reduce((sum, o) => sum + (o.expected_revenue || 0), 0);
+                weightedTotals = {
+                    total_weighted_pipeline: totalWeighted,
+                    best_case_revenue: totalBestCase,
+                    worst_case_revenue: totalWorstCase,
+                    total_deals: allOpportunities.length
+                };
+            }
+            // Use weighted formatter if weighted data available
+            const output = params.include_weighted
+                ? formatPipelineSummaryWithWeighted(stageSummaries, params.response_format, weightedTotals)
+                : formatPipelineSummary(stageSummaries, params.response_format);
             return {
                 content: [{ type: 'text', text: output }],
-                structuredContent: { stages: stageSummaries }
+                structuredContent: params.include_weighted
+                    ? { stages: stageSummaries, totals: weightedTotals }
+                    : { stages: stageSummaries }
             };
         }
         catch (error) {
@@ -293,13 +373,19 @@ Returns: count, total revenue, avg probability per stage, plus optional top oppo
 
 Returns aggregated metrics including conversion rates, revenue analysis, and performance by stage/salesperson.
 
-**When to use:**
-- Understanding overall CRM performance
-- Analyzing win/loss rates
-- Comparing salesperson performance
-- Identifying top opportunities
+**Key Parameters:**
+- \`include_stage_duration\`: Add average days spent in each pipeline stage. Flags bottleneck.
+- \`include_velocity\`: Add pipeline velocity metrics (deals/month, revenue/month, cycle time)
+- \`target_amount\`: Track progress toward revenue target with gap analysis and status
 
-**Ideal for:** Initial analysis, reporting, performance reviews`,
+**Handles queries like:**
+- "How long do deals stay in each stage?" → \`include_stage_duration=true\`
+- "What's the bottleneck in our pipeline?" → \`include_stage_duration=true\`
+- "Are we on track to hit $5M?" → \`target_amount=5000000\`
+- "What's our pipeline velocity?" → \`include_velocity=true\`
+- "How many deals do we close per month?" → \`include_velocity=true\`
+
+**Ideal for:** Initial analysis, reporting, performance reviews, forecasting`,
         inputSchema: SalesAnalyticsSchema,
         annotations: {
             readOnlyHint: true,
@@ -377,6 +463,137 @@ Returns aggregated metrics including conversion rates, revenue analysis, and per
                     probability: o.probability || 0,
                     stage: getRelationName(o.stage_id)
                 }));
+            }
+            // Stage duration analysis
+            if (params.include_stage_duration) {
+                // Define milestone fields and their corresponding stage names in sequence
+                const milestoneStages = [
+                    { field: 'specification_date', stage: 'Specification', sequence: 1 },
+                    { field: 'tender_rfq_date', stage: 'Tender RFQ', sequence: 2 },
+                    { field: 'tender_estimate_date', stage: 'Tender Estimate', sequence: 3 },
+                    { field: 'negotiate_date', stage: 'Negotiation', sequence: 4 },
+                    { field: 'proposal_date', stage: 'Proposal', sequence: 5 },
+                ];
+                // Get won deals with milestone dates
+                const wonDeals = await client.searchRead('crm.lead', [...domain, ['probability', '=', 100]], ['id', 'create_date', ...milestoneStages.map(m => m.field)], { limit: 500 });
+                // Calculate average duration for each stage transition
+                const stageDurations = [];
+                for (let i = 0; i < milestoneStages.length; i++) {
+                    const currentStage = milestoneStages[i];
+                    const prevField = i === 0 ? 'create_date' : milestoneStages[i - 1].field;
+                    const currentField = currentStage.field;
+                    let totalDays = 0;
+                    let count = 0;
+                    for (const deal of wonDeals) {
+                        const prevDate = deal[prevField];
+                        const currentDate = deal[currentField];
+                        if (prevDate && currentDate) {
+                            const prev = new Date(prevDate);
+                            const curr = new Date(currentDate);
+                            const diffDays = Math.floor((curr.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24));
+                            if (diffDays >= 0) {
+                                totalDays += diffDays;
+                                count++;
+                            }
+                        }
+                    }
+                    if (count > 0) {
+                        stageDurations.push({
+                            stage_name: currentStage.stage,
+                            stage_sequence: currentStage.sequence,
+                            avg_days: Math.round(totalDays / count),
+                            deal_count: count,
+                            is_bottleneck: false
+                        });
+                    }
+                }
+                // Mark the longest stage as bottleneck
+                if (stageDurations.length > 0) {
+                    const maxDays = Math.max(...stageDurations.map(s => s.avg_days));
+                    stageDurations.forEach(s => {
+                        s.is_bottleneck = s.avg_days === maxDays;
+                    });
+                }
+                analytics.stage_durations = stageDurations;
+            }
+            // Velocity metrics
+            if (params.include_velocity) {
+                // Calculate period in months
+                let periodMonths = 12; // Default to 1 year
+                if (params.date_from && params.date_to) {
+                    const from = new Date(params.date_from);
+                    const to = new Date(params.date_to);
+                    const diffMs = to.getTime() - from.getTime();
+                    periodMonths = Math.max(1, Math.round(diffMs / (1000 * 60 * 60 * 24 * 30)));
+                }
+                else if (params.date_from) {
+                    const from = new Date(params.date_from);
+                    const now = new Date();
+                    const diffMs = now.getTime() - from.getTime();
+                    periodMonths = Math.max(1, Math.round(diffMs / (1000 * 60 * 60 * 24 * 30)));
+                }
+                // Calculate average cycle days from won deals
+                const wonDealsForCycle = await client.searchRead('crm.lead', [...domain, ['probability', '=', 100]], ['id', 'create_date', 'date_closed'], { limit: 500 });
+                let totalCycleDays = 0;
+                let cycleCount = 0;
+                for (const deal of wonDealsForCycle) {
+                    if (deal.create_date && deal.date_closed) {
+                        const created = new Date(deal.create_date);
+                        const closed = new Date(deal.date_closed);
+                        const diffDays = Math.floor((closed.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
+                        if (diffDays >= 0) {
+                            totalCycleDays += diffDays;
+                            cycleCount++;
+                        }
+                    }
+                }
+                analytics.velocity = {
+                    deals_per_month: Math.round((wonOpps / periodMonths) * 10) / 10,
+                    revenue_per_month: Math.round(revenueWon / periodMonths),
+                    avg_cycle_days: cycleCount > 0 ? Math.round(totalCycleDays / cycleCount) : 0,
+                    period_months: periodMonths
+                };
+            }
+            // Target tracking
+            if (params.target_amount) {
+                // Calculate days remaining in period
+                let daysRemaining = 30; // Default
+                let daysElapsed = 30; // Default
+                if (params.date_to) {
+                    const now = new Date();
+                    const endDate = new Date(params.date_to);
+                    daysRemaining = Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+                }
+                if (params.date_from) {
+                    const startDate = new Date(params.date_from);
+                    const now = new Date();
+                    daysElapsed = Math.max(1, Math.ceil((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
+                }
+                const gap = params.target_amount - revenueWon;
+                const percentComplete = (revenueWon / params.target_amount) * 100;
+                const currentDailyRate = daysElapsed > 0 ? revenueWon / daysElapsed : 0;
+                const requiredDailyRate = daysRemaining > 0 ? gap / daysRemaining : 0;
+                // Determine status
+                let status;
+                if (percentComplete >= 100 || (daysRemaining > 0 && currentDailyRate >= requiredDailyRate)) {
+                    status = 'on_track';
+                }
+                else if (percentComplete >= 70 || currentDailyRate >= requiredDailyRate * 0.7) {
+                    status = 'at_risk';
+                }
+                else {
+                    status = 'behind';
+                }
+                analytics.target_tracking = {
+                    target: params.target_amount,
+                    achieved: revenueWon,
+                    gap: Math.max(0, gap),
+                    percent_complete: Math.round(percentComplete * 10) / 10,
+                    days_remaining: daysRemaining,
+                    required_daily_rate: Math.round(requiredDailyRate),
+                    current_daily_rate: Math.round(currentDailyRate),
+                    status
+                };
             }
             const output = formatSalesAnalytics(analytics, params.response_format);
             return {
@@ -703,15 +920,17 @@ Returns the list of predefined reasons for losing opportunities, with a count of
 
 Returns summary statistics including total lost count and revenue, breakdown by the selected grouping, and optionally the top largest lost opportunities.
 
-**When to use:**
-- Understanding why deals are being lost (group by reason)
-- Analyzing which salespeople have highest loss rates (group by salesperson)
-- Finding at which stage deals are lost most (group by stage)
-- Reviewing monthly loss trends (group by month)
+**Key Parameters:**
+- \`lost_reason_name\`: Filter by lost reason text (partial match). Use for competitor analysis.
+
+**Handles queries like:**
+- "Why do we lose to [competitor]?" → \`lost_reason_name='Competitor Name'\`
+- "Win rate against [competitor]?" → \`lost_reason_name='Competitor Name'\`
+- "Which competitor do we lose to most?" → \`group_by='reason'\`
 
 **Best Practices:**
 - Start with group_by='reason' for initial analysis
-- Use date filters to focus on specific time periods
+- Use lost_reason_name for competitor-specific analysis
 - Compare with won data for context (win/loss ratio)`,
         inputSchema: LostAnalysisSchema,
         annotations: {
@@ -745,6 +964,9 @@ Returns summary statistics including total lost count and revenue, breakdown by 
             }
             if (params.lost_reason_id) {
                 domain.push(['lost_reason_id', '=', params.lost_reason_id]);
+            }
+            if (params.lost_reason_name) {
+                domain.push(['lost_reason_id.name', 'ilike', params.lost_reason_name]);
             }
             if (params.stage_id) {
                 domain.push(['stage_id', '=', params.stage_id]);
@@ -1373,11 +1595,18 @@ Returns a paginated list of won opportunities with details including revenue, sa
 
 Returns summary statistics including total won count and revenue, breakdown by the selected grouping, and optionally the top largest won opportunities.
 
+**Key Parameters:**
+- \`include_conversion_rates\`: Add stage-to-stage conversion funnel analysis. Shows where deals drop off.
+
+**Handles queries like:**
+- "What's our conversion rate?" → \`include_conversion_rates=true\`
+- "Where do we lose deals in the funnel?" → \`include_conversion_rates=true\`
+- "Which source has best conversion?" → \`group_by='source', include_conversion_rates=true\`
+
 **When to use:**
 - Understanding what drives successful deals (group by source)
 - Analyzing which salespeople have highest win rates (group by salesperson)
-- Finding which stages close most deals (group by stage)
-- Reviewing monthly success trends (group by month)`,
+- Funnel analysis and conversion optimization`,
         inputSchema: WonAnalysisSchema,
         annotations: {
             readOnlyHint: true,
@@ -1565,6 +1794,75 @@ Returns summary statistics including total won count and revenue, breakdown by t
                         sales_cycle_days: cycleDays
                     };
                 });
+            }
+            // Conversion funnel analysis
+            if (params.include_conversion_rates) {
+                // Define milestone fields in sequence
+                const milestoneStages = [
+                    { field: 'specification_date', stage: 'Specification' },
+                    { field: 'tender_rfq_date', stage: 'Tender RFQ' },
+                    { field: 'tender_estimate_date', stage: 'Tender Estimate' },
+                    { field: 'negotiate_date', stage: 'Negotiation' },
+                    { field: 'proposal_date', stage: 'Proposal' },
+                ];
+                // Build domain without won filter to get all opportunities
+                const allOppsDomain = [
+                    ['type', '=', 'opportunity']
+                ];
+                if (params.date_from) {
+                    allOppsDomain.push(['create_date', '>=', convertDateToUtc(params.date_from, false)]);
+                }
+                if (params.date_to) {
+                    allOppsDomain.push(['create_date', '<=', convertDateToUtc(params.date_to, true)]);
+                }
+                if (params.user_id) {
+                    allOppsDomain.push(['user_id', '=', params.user_id]);
+                }
+                if (params.team_id) {
+                    allOppsDomain.push(['team_id', '=', params.team_id]);
+                }
+                // Get all opportunities with milestone dates
+                const allOpps = await client.searchRead('crm.lead', allOppsDomain, ['id', 'probability', ...milestoneStages.map(m => m.field)], { limit: 2000 });
+                // Count how many opportunities reached each stage
+                const stageCounts = {};
+                stageCounts['Created'] = allOpps.length;
+                for (const stage of milestoneStages) {
+                    stageCounts[stage.stage] = allOpps.filter(o => o[stage.field]).length;
+                }
+                stageCounts['Won'] = allOpps.filter(o => o.probability === 100).length;
+                // Calculate stage-to-stage conversion rates
+                const stageConversions = [];
+                const stageSequence = ['Created', ...milestoneStages.map(m => m.stage), 'Won'];
+                let biggestDropRate = 0;
+                let biggestDropStage = '';
+                for (let i = 0; i < stageSequence.length - 1; i++) {
+                    const fromStage = stageSequence[i];
+                    const toStage = stageSequence[i + 1];
+                    const fromCount = stageCounts[fromStage] || 0;
+                    const toCount = stageCounts[toStage] || 0;
+                    const rate = fromCount > 0 ? (toCount / fromCount) * 100 : 0;
+                    const dropCount = fromCount - toCount;
+                    const dropRate = fromCount > 0 ? (dropCount / fromCount) * 100 : 0;
+                    stageConversions.push({
+                        from_stage: fromStage,
+                        to_stage: toStage,
+                        rate: Math.round(rate * 10) / 10,
+                        drop_count: dropCount
+                    });
+                    if (dropRate > biggestDropRate && dropCount > 0) {
+                        biggestDropRate = dropRate;
+                        biggestDropStage = `${fromStage} → ${toStage}`;
+                    }
+                }
+                const overallRate = allOpps.length > 0
+                    ? (stageCounts['Won'] / allOpps.length) * 100
+                    : 0;
+                analysis.conversion_funnel = {
+                    overall_conversion_rate: Math.round(overallRate * 10) / 10,
+                    stage_conversions: stageConversions,
+                    biggest_drop: biggestDropStage || 'N/A',
+                    total_leads_analyzed: allOpps.length
+                };
             }
             const output = formatWonAnalysis(analysis, params.group_by, params.response_format);
             return {

@@ -43,6 +43,11 @@ export interface CrmLead extends OdooRecord {
     sector?: string;
     specification_id?: [number, string];
 }
+export interface CrmLeadWithActivity extends CrmLead {
+    last_activity_date?: string | null;
+    days_since_activity?: number;
+    is_stale?: boolean;
+}
 export interface CrmStage extends OdooRecord {
     id: number;
     name: string;
@@ -125,6 +130,32 @@ export interface SalesAnalytics {
         probability: number;
         stage: string;
     }>;
+    stage_durations?: StageDuration[];
+    velocity?: VelocityMetrics;
+    target_tracking?: TargetTracking;
+}
+export interface StageDuration {
+    stage_name: string;
+    stage_sequence: number;
+    avg_days: number;
+    deal_count: number;
+    is_bottleneck: boolean;
+}
+export interface VelocityMetrics {
+    deals_per_month: number;
+    revenue_per_month: number;
+    avg_cycle_days: number;
+    period_months: number;
+}
+export interface TargetTracking {
+    target: number;
+    achieved: number;
+    gap: number;
+    percent_complete: number;
+    days_remaining: number;
+    required_daily_rate: number;
+    current_daily_rate: number;
+    status: 'on_track' | 'at_risk' | 'behind';
 }
 export interface ActivitySummary {
     [key: string]: unknown;
@@ -381,6 +412,18 @@ export interface WonAnalysisSummary {
         date_closed: string;
         sales_cycle_days?: number;
     }>;
+    conversion_funnel?: ConversionFunnel;
+}
+export interface ConversionFunnel {
+    overall_conversion_rate: number;
+    stage_conversions: Array<{
+        from_stage: string;
+        to_stage: string;
+        rate: number;
+        drop_count: number;
+    }>;
+    biggest_drop: string;
+    total_leads_analyzed: number;
 }
 export interface WonTrendsSummary {
     [key: string]: unknown;
@@ -511,6 +554,12 @@ export interface ExportProgress {
 }
 export interface PipelineSummaryWithWeighted extends PipelineSummary {
     weighted_revenue: number;
+}
+export interface WeightedPipelineTotals {
+    total_weighted_pipeline: number;
+    best_case_revenue: number;
+    worst_case_revenue: number;
+    total_deals: number;
 }
 export interface SalesAnalyticsWithWeighted extends SalesAnalytics {
     total_weighted_pipeline?: number;

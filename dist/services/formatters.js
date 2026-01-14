@@ -815,16 +815,25 @@ export function formatExportResult(result, format) {
     return output;
 }
 // Format pipeline summary with weighted revenue
-export function formatPipelineSummaryWithWeighted(stages, format) {
+export function formatPipelineSummaryWithWeighted(stages, format, totals) {
     if (format === ResponseFormat.JSON) {
-        return JSON.stringify({ stages }, null, 2);
+        return JSON.stringify({ stages, totals }, null, 2);
     }
     let output = '## Pipeline Summary (with Weighted Revenue)\n\n';
-    const totalRevenue = stages.reduce((sum, s) => sum + s.total_revenue, 0);
-    const totalWeighted = stages.reduce((sum, s) => sum + s.weighted_revenue, 0);
-    const totalCount = stages.reduce((sum, s) => sum + s.count, 0);
-    output += `**Total Pipeline:** ${totalCount} opportunities | ${formatCurrency(totalRevenue)}\n`;
-    output += `**Total Weighted Pipeline:** ${formatCurrency(totalWeighted)}\n\n`;
+    // Use provided totals or calculate from stages
+    const totalRevenue = totals?.best_case_revenue ?? stages.reduce((sum, s) => sum + s.total_revenue, 0);
+    const totalWeighted = totals?.total_weighted_pipeline ?? stages.reduce((sum, s) => sum + s.weighted_revenue, 0);
+    const totalCount = totals?.total_deals ?? stages.reduce((sum, s) => sum + s.count, 0);
+    output += `### Forecast Summary\n`;
+    output += `| Scenario | Value | Description |\n`;
+    output += `|----------|-------|-------------|\n`;
+    output += `| **Expected (Weighted)** | ${formatCurrency(totalWeighted)} | Probability-adjusted revenue |\n`;
+    output += `| Best Case | ${formatCurrency(totalRevenue)} | If all deals close at 100% |\n`;
+    if (totals?.worst_case_revenue !== undefined) {
+        output += `| Worst Case | ${formatCurrency(totals.worst_case_revenue)} | Only high-probability (≥70%) deals |\n`;
+    }
+    output += `| Total Deals | ${totalCount} | |\n\n`;
+    output += '### Pipeline by Stage\n';
     output += '| Stage | Count | Revenue | Weighted | Avg Prob |\n';
     output += '|-------|-------|---------|----------|----------|\n';
     for (const stage of stages) {
