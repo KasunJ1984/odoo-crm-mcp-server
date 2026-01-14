@@ -1486,3 +1486,63 @@ export function formatRfqByColorList(data: RfqSearchResult, format: ResponseForm
 
   return output;
 }
+
+// =============================================================================
+// NOTES ANALYSIS FORMATTERS
+// =============================================================================
+
+import type { AggregatedValue, PeriodAggregation } from '../utils/notes-parser.js';
+
+/**
+ * Result from notes analysis tool
+ */
+export interface NotesAnalysisResult {
+  [key: string]: unknown;  // Index signature for MCP SDK compatibility
+  extract_field: string;
+  date_range: string;
+  group_by: 'value' | 'month' | 'quarter';
+  total_leads_analyzed: number;
+  total_with_value: number;
+  detection_rate: number;
+  // For value grouping
+  values?: AggregatedValue[];
+  // For period grouping
+  periods?: PeriodAggregation[];
+}
+
+/**
+ * Format notes analysis results.
+ */
+export function formatNotesAnalysis(data: NotesAnalysisResult, format: ResponseFormat): string {
+  if (format === ResponseFormat.JSON) {
+    return JSON.stringify(data, null, 2);
+  }
+
+  let output = `## Notes Analysis: ${data.extract_field}\n\n`;
+  output += `**Period:** ${data.date_range}\n`;
+  output += `**Records Analyzed:** ${data.total_leads_analyzed.toLocaleString()}\n`;
+  output += `**With Value:** ${data.total_with_value.toLocaleString()} (${formatPercent(data.detection_rate)})\n\n`;
+
+  if (data.group_by === 'value' && data.values) {
+    // Value aggregation
+    output += `### Top Values\n\n`;
+    output += '| Value | Count | % | Revenue |\n';
+    output += '|-------|-------|---|--------|\n';
+
+    for (const item of data.values) {
+      output += `| ${item.value} | ${item.count.toLocaleString()} | ${formatPercent(item.percentage)} | ${formatCurrency(item.total_revenue)} |\n`;
+    }
+  } else if (data.periods) {
+    // Period aggregation
+    output += `### By ${data.group_by === 'month' ? 'Month' : 'Quarter'}\n\n`;
+    output += '| Period | Count | Revenue | Top Values |\n';
+    output += '|--------|-------|---------|------------|\n';
+
+    for (const period of data.periods) {
+      const topValues = period.values.slice(0, 3).map(v => `${v.value} (${v.count})`).join(', ') || '-';
+      output += `| ${period.period} | ${period.total_count.toLocaleString()} | ${formatCurrency(period.total_revenue)} | ${topValues} |\n`;
+    }
+  }
+
+  return output;
+}

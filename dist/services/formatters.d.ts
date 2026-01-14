@@ -90,4 +90,23 @@ export declare function formatColorTrends(summary: ColorTrendsSummary, format: R
  * @returns Formatted string
  */
 export declare function formatRfqByColorList(data: RfqSearchResult, format: ResponseFormat): string;
+import type { AggregatedValue, PeriodAggregation } from '../utils/notes-parser.js';
+/**
+ * Result from notes analysis tool
+ */
+export interface NotesAnalysisResult {
+    [key: string]: unknown;
+    extract_field: string;
+    date_range: string;
+    group_by: 'value' | 'month' | 'quarter';
+    total_leads_analyzed: number;
+    total_with_value: number;
+    detection_rate: number;
+    values?: AggregatedValue[];
+    periods?: PeriodAggregation[];
+}
+/**
+ * Format notes analysis results.
+ */
+export declare function formatNotesAnalysis(data: NotesAnalysisResult, format: ResponseFormat): string;
 //# sourceMappingURL=formatters.d.ts.map

@@ -920,6 +920,74 @@ export const RfqByColorSearchSchema = PaginationSchema.extend({
     .describe('Sort direction')
 }).strict();
 
+// =============================================================================
+// NOTES ANALYSIS SCHEMA - For flexible internal notes parsing
+// =============================================================================
+
+/**
+ * Schema for the analyze_notes tool.
+ * Flexible extraction and aggregation of any "Specified X = Y" pattern from notes.
+ */
+export const AnalyzeNotesSchema = z.object({
+  extract_field: z.string()
+    .min(1)
+    .max(100)
+    .default('Specified Colours')
+    .describe("Field pattern to extract from notes. Examples: 'Specified Colours', 'Specified System'. Default: 'Specified Colours'"),
+  date_from: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe('Start date (YYYY-MM-DD). Defaults to 12 months ago.'),
+  date_to: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe('End date (YYYY-MM-DD). Defaults to today.'),
+  date_field: z.enum(['create_date', 'tender_rfq_date', 'date_closed'])
+    .default('tender_rfq_date')
+    .describe("Date field to use for filtering: 'tender_rfq_date' (default), 'create_date', or 'date_closed'"),
+  group_by: z.enum(['value', 'month', 'quarter'])
+    .default('value')
+    .describe("How to aggregate results: 'value' (count by unique values), 'month', or 'quarter'"),
+  top_n: z.number()
+    .int()
+    .min(0)
+    .max(100)
+    .default(20)
+    .describe('Limit results to top N values (0 = all). Default: 20'),
+  user_id: z.number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Filter by salesperson user ID'),
+  team_id: z.number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Filter by sales team ID'),
+  state_id: z.number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Filter by Australian state/territory ID'),
+  stage_id: z.number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Filter by specific stage ID'),
+  stage_name: z.string()
+    .optional()
+    .describe('Filter by stage name (case-insensitive partial match)'),
+  min_revenue: z.number()
+    .min(0)
+    .optional()
+    .describe('Minimum expected revenue filter'),
+  response_format: z.nativeEnum(ResponseFormat)
+    .default(ResponseFormat.MARKDOWN)
+    .describe("Output format: 'markdown' or 'json'")
+}).strict();
+
+export type AnalyzeNotesInput = z.infer<typeof AnalyzeNotesSchema>;
+
 // Export inferred types
 export type LeadSearchInput = z.infer<typeof LeadSearchSchema>;
 export type LeadDetailInput = z.infer<typeof LeadDetailSchema>;

@@ -1,13 +1,14 @@
 import { getOdooClient } from '../services/odoo-client.js';
 import { getPoolMetrics, useClient } from '../services/odoo-pool.js';
-import { formatLeadList, formatLeadDetail, formatPipelineSummary, formatSalesAnalytics, formatContactList, formatActivitySummary, getRelationName, formatLostReasonsList, formatLostAnalysis, formatLostOpportunitiesList, formatLostTrends, formatDate, formatWonOpportunitiesList, formatWonAnalysis, formatWonTrends, formatSalespeopleList, formatTeamsList, formatPerformanceComparison, formatActivityList, formatExportResult, formatStatesList, formatStateComparison, formatFieldsList, formatColorTrends, formatRfqByColorList } from '../services/formatters.js';
-import { LeadSearchSchema, LeadDetailSchema, PipelineSummarySchema, SalesAnalyticsSchema, ContactSearchSchema, ActivitySummarySchema, StageListSchema, LostReasonsListSchema, LostAnalysisSchema, LostOpportunitiesSearchSchema, LostTrendsSchema, WonOpportunitiesSearchSchema, WonAnalysisSchema, WonTrendsSchema, SalespeopleListSchema, TeamsListSchema, ComparePerformanceSchema, ActivitySearchSchema, ExportDataSchema, StatesListSchema, CompareStatesSchema, CacheStatusSchema, HealthCheckSchema, ListFieldsSchema, ColorTrendsSchema, RfqByColorSearchSchema } from '../schemas/index.js';
+import { formatLeadList, formatLeadDetail, formatPipelineSummary, formatSalesAnalytics, formatContactList, formatActivitySummary, getRelationName, formatLostReasonsList, formatLostAnalysis, formatLostOpportunitiesList, formatLostTrends, formatDate, formatWonOpportunitiesList, formatWonAnalysis, formatWonTrends, formatSalespeopleList, formatTeamsList, formatPerformanceComparison, formatActivityList, formatExportResult, formatStatesList, formatStateComparison, formatFieldsList, formatColorTrends, formatRfqByColorList, formatNotesAnalysis } from '../services/formatters.js';
+import { LeadSearchSchema, LeadDetailSchema, PipelineSummarySchema, SalesAnalyticsSchema, ContactSearchSchema, ActivitySummarySchema, StageListSchema, LostReasonsListSchema, LostAnalysisSchema, LostOpportunitiesSearchSchema, LostTrendsSchema, WonOpportunitiesSearchSchema, WonAnalysisSchema, WonTrendsSchema, SalespeopleListSchema, TeamsListSchema, ComparePerformanceSchema, ActivitySearchSchema, ExportDataSchema, StatesListSchema, CompareStatesSchema, CacheStatusSchema, HealthCheckSchema, ListFieldsSchema, ColorTrendsSchema, RfqByColorSearchSchema, AnalyzeNotesSchema } from '../schemas/index.js';
 import { CRM_FIELDS, CONTEXT_LIMITS, ResponseFormat, EXPORT_CONFIG, FIELD_PRESETS, resolveFields } from '../constants.js';
 import { enrichLeadsWithEnhancedColor, buildColorTrendsSummary, filterLeadsByColor } from '../services/color-service.js';
 import { ExportWriter, generateExportFilename, getOutputDirectory, getMimeType } from '../utils/export-writer.js';
 import { convertDateToUtc, getDaysAgoUtc } from '../utils/timezone.js';
 import { cache, CACHE_KEYS } from '../utils/cache.js';
 import { withTimeout, TIMEOUTS, TimeoutError } from '../utils/timeout.js';
+import { parseNotesField, aggregateByValue, aggregateByPeriod } from '../utils/notes-parser.js';
 // Register all CRM tools
 export function registerCrmTools(server) {
     // ============================================
@@ -3115,6 +3116,131 @@ This tool allows you to drill down into specific color RFQs after analyzing tren
             return {
                 isError: true,
                 content: [{ type: 'text', text: `Error searching RFQs by color: ${message}` }]
+            };
+        }
+    });
+    // ============================================
+    // TOOL: Analyze Internal Notes
+    // ============================================
+    server.registerTool('odoo_crm_analyze_notes', {
+        title: 'Analyze Internal Notes',
+        description: `Extract and aggregate data from CRM internal notes.
+
+This flexible tool parses structured data from opportunity notes and provides aggregated analytics.
+
+**What it extracts:**
+Parses "Specified X = Y" patterns from internal notes. Default extracts colors, but can extract any field.
+
+**Common extract_field values:**
+- "Specified Colours" (default) - Color/laminate specifications
+- "Specified System" - Product system types
+
+**Aggregation options:**
+- group_by: "value" - Count occurrences of each unique value
+- group_by: "month" - Group by month for trend analysis
+- group_by: "quarter" - Group by quarter
+
+**Example queries:**
+- Top colors in RFQs: extract_field="Specified Colours", group_by="value"
+- Color trends over time: extract_field="Specified Colours", group_by="month"
+- System types used: extract_field="Specified System", group_by="value"`,
+        inputSchema: AnalyzeNotesSchema,
+        annotations: {
+            readOnlyHint: true,
+            destructiveHint: false,
+            idempotentHint: true,
+            openWorldHint: true
+        }
+    }, async (params) => {
+        try {
+            return await useClient(async (client) => {
+                // Build domain filter
+                const domain = [['active', '=', true]];
+                // Date filters
+                const dateField = params.date_field || 'tender_rfq_date';
+                // Default to 12 months ago if no date_from specified
+                const dateFrom = params.date_from || getDaysAgoUtc(365);
+                domain.push([dateField, '>=', convertDateToUtc(dateFrom, false)]);
+                if (params.date_to) {
+                    domain.push([dateField, '<=', convertDateToUtc(params.date_to, true)]);
+                }
+                // Optional filters
+                if (params.user_id) {
+                    domain.push(['user_id', '=', params.user_id]);
+                }
+                if (params.team_id) {
+                    domain.push(['team_id', '=', params.team_id]);
+                }
+                if (params.state_id) {
+                    domain.push(['state_id', '=', params.state_id]);
+                }
+                if (params.min_revenue !== undefined) {
+                    domain.push(['expected_revenue', '>=', params.min_revenue]);
+                }
+                if (params.stage_id) {
+                    domain.push(['stage_id', '=', params.stage_id]);
+                }
+                if (params.stage_name) {
+                    domain.push(['stage_id.name', 'ilike', params.stage_name]);
+                }
+                // Fetch leads with description field
+                const leads = await client.searchRead('crm.lead', domain, ['id', 'name', 'description', 'expected_revenue', dateField], { limit: 5000, offset: 0, order: `${dateField} desc` });
+                // Extract field values from notes
+                const extractField = params.extract_field || 'Specified Colours';
+                const extractedData = leads.map(lead => ({
+                    lead_id: lead.id,
+                    lead_name: lead.name,
+                    extracted_value: parseNotesField(lead.description, extractField),
+                    date_value: lead[dateField] || null,
+                    expected_revenue: lead.expected_revenue || 0
+                }));
+                // Count totals
+                const totalAnalyzed = extractedData.length;
+                const withValue = extractedData.filter(d => d.extracted_value !== null).length;
+                const detectionRate = totalAnalyzed > 0 ? (withValue / totalAnalyzed) * 100 : 0;
+                // Build date range string
+                const dateRange = params.date_to
+                    ? `${dateFrom} to ${params.date_to}`
+                    : `${dateFrom} to today`;
+                // Aggregate based on group_by
+                const groupBy = params.group_by || 'value';
+                let result;
+                if (groupBy === 'value') {
+                    const values = aggregateByValue(extractedData, params.top_n || 20);
+                    result = {
+                        extract_field: extractField,
+                        date_range: dateRange,
+                        group_by: groupBy,
+                        total_leads_analyzed: totalAnalyzed,
+                        total_with_value: withValue,
+                        detection_rate: detectionRate,
+                        values
+                    };
+                }
+                else {
+                    const periods = aggregateByPeriod(extractedData, groupBy);
+                    result = {
+                        extract_field: extractField,
+                        date_range: dateRange,
+                        group_by: groupBy,
+                        total_leads_analyzed: totalAnalyzed,
+                        total_with_value: withValue,
+                        detection_rate: detectionRate,
+                        periods
+                    };
+                }
+                const output = formatNotesAnalysis(result, params.response_format);
+                return {
+                    content: [{ type: 'text', text: output }],
+                    structuredContent: result
+                };
+            });
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            return {
+                isError: true,
+                content: [{ type: 'text', text: `Error analyzing notes: ${message}` }]
             };
         }
     });

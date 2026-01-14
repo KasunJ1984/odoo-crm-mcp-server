@@ -1242,4 +1242,36 @@ export function formatRfqByColorList(data, format) {
     output += '\n\n**Color Legend:** 🎨 Detected | ⚪ No color | [CODE] = Product code';
     return output;
 }
+/**
+ * Format notes analysis results.
+ */
+export function formatNotesAnalysis(data, format) {
+    if (format === ResponseFormat.JSON) {
+        return JSON.stringify(data, null, 2);
+    }
+    let output = `## Notes Analysis: ${data.extract_field}\n\n`;
+    output += `**Period:** ${data.date_range}\n`;
+    output += `**Records Analyzed:** ${data.total_leads_analyzed.toLocaleString()}\n`;
+    output += `**With Value:** ${data.total_with_value.toLocaleString()} (${formatPercent(data.detection_rate)})\n\n`;
+    if (data.group_by === 'value' && data.values) {
+        // Value aggregation
+        output += `### Top Values\n\n`;
+        output += '| Value | Count | % | Revenue |\n';
+        output += '|-------|-------|---|--------|\n';
+        for (const item of data.values) {
+            output += `| ${item.value} | ${item.count.toLocaleString()} | ${formatPercent(item.percentage)} | ${formatCurrency(item.total_revenue)} |\n`;
+        }
+    }
+    else if (data.periods) {
+        // Period aggregation
+        output += `### By ${data.group_by === 'month' ? 'Month' : 'Quarter'}\n\n`;
+        output += '| Period | Count | Revenue | Top Values |\n';
+        output += '|--------|-------|---------|------------|\n';
+        for (const period of data.periods) {
+            const topValues = period.values.slice(0, 3).map(v => `${v.value} (${v.count})`).join(', ') || '-';
+            output += `| ${period.period} | ${period.total_count.toLocaleString()} | ${formatCurrency(period.total_revenue)} | ${topValues} |\n`;
+        }
+    }
+    return output;
+}
 //# sourceMappingURL=formatters.js.map

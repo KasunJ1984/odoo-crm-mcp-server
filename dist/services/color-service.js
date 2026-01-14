@@ -1,57 +1,14 @@
 /**
  * Color analysis service for CRM RFQ data
  *
- * Provides color extraction, caching, and aggregation for trend analysis.
+ * Provides color extraction and aggregation for trend analysis.
  * Used by the color trends and RFQ search MCP tools.
+ *
+ * NOTE: This service uses the legacy color extraction system which
+ * categorizes colors into 11 standard categories. For raw text analysis
+ * without categorization, use notes-parser.ts instead.
  */
 import { extractColorFromDescription, extractEnhancedColors } from '../utils/color-extractor.js';
-// Simple in-memory cache for color extractions (5-minute TTL)
-const colorCache = new Map();
-const COLOR_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-/**
- * Get color extraction for a lead with caching.
- * Cache prevents re-extraction during the same analysis session.
- *
- * @param leadId - The lead ID for cache key
- * @param description - The description text to extract from
- * @returns ColorExtraction result
- */
-export function getLeadColor(leadId, description) {
-    const now = Date.now();
-    // Check cache
-    const cached = colorCache.get(leadId);
-    if (cached && (now - cached.timestamp) < COLOR_CACHE_TTL_MS) {
-        return cached.extraction;
-    }
-    // Extract and cache
-    const extraction = extractColorFromDescription(description);
-    colorCache.set(leadId, { extraction, timestamp: now });
-    return extraction;
-}
-/**
- * Clear expired entries from the color cache.
- * Call periodically to prevent memory bloat.
- */
-export function cleanupColorCache() {
-    const now = Date.now();
-    let removed = 0;
-    for (const [leadId, entry] of colorCache.entries()) {
-        if ((now - entry.timestamp) >= COLOR_CACHE_TTL_MS) {
-            colorCache.delete(leadId);
-            removed++;
-        }
-    }
-    return removed;
-}
-/**
- * Get current cache statistics for monitoring.
- */
-export function getColorCacheStats() {
-    return {
-        size: colorCache.size,
-        ttl_ms: COLOR_CACHE_TTL_MS
-    };
-}
 /**
  * Enrich leads with color extraction data.
  * Adds a `color` property to each lead.
@@ -62,7 +19,7 @@ export function getColorCacheStats() {
 export function enrichLeadsWithColor(leads) {
     return leads.map(lead => ({
         ...lead,
-        color: getLeadColor(lead.id, lead.description)
+        color: extractColorFromDescription(lead.description)
     }));
 }
 /**
@@ -76,25 +33,15 @@ export function enrichLeadsWithColor(leads) {
  *
  * @param leads - Array of CRM leads
  * @returns Array of leads with enhanced color data
- *
- * @example
- * const leads = await searchLeads({ date_from: '2024-01-01' });
- * const enriched = enrichLeadsWithEnhancedColor(leads);
- * // enriched[0].colors.primary.color_code === "9610"
- * // enriched[0].colors.all_colors.length === 2 (for multi-color specs)
- * // enriched[0].color still works (backward compatible)
  */
 export function enrichLeadsWithEnhancedColor(leads) {
     return leads.map(lead => {
         const enhanced = extractEnhancedColors(lead.description);
         // Build legacy ColorExtraction for backward compatibility
-        // Use color_name for raw_color to enable proper filtering (e.g., searching "orange" should match)
-        // Fall back to full_specification if color_name is empty
         const legacy = enhanced.primary
             ? {
                 raw_color: enhanced.primary.color_name || enhanced.primary.full_specification,
                 color_category: enhanced.primary.color_category,
-                // Map 'specified' to 'explicit' for legacy compatibility
                 extraction_source: enhanced.extraction_source === 'specified'
                     ? 'explicit'
                     : enhanced.extraction_source
@@ -103,7 +50,7 @@ export function enrichLeadsWithEnhancedColor(leads) {
         return {
             ...lead,
             colors: enhanced,
-            color: legacy // Backward compatibility
+            color: legacy
         };
     });
 }
@@ -130,7 +77,7 @@ export function aggregateByColor(leads) {
  * @param granularity - 'month' or 'quarter'
  * @returns Period label (e.g., "Jan 2025", "2025-Q1", or "Unknown")
  */
-export function getPeriodLabel(dateStr, granularity) {
+function getPeriodLabel(dateStr, granularity) {
     if (!dateStr)
         return 'Unknown';
     const date = new Date(dateStr);
@@ -157,7 +104,6 @@ export function buildColorTrendsSummary(leads, granularity, dateField) {
     // Group leads by period
     const periodMap = new Map();
     for (const lead of leads) {
-        // Get date value from the specified field
         const dateValue = lead[dateField];
         const periodLabel = getPeriodLabel(dateValue, granularity);
         const existing = periodMap.get(periodLabel) || [];
@@ -178,7 +124,7 @@ export function buildColorTrendsSummary(leads, granularity, dateField) {
         const periodLeads = periodMap.get(periodLabel);
         const colorGroups = aggregateByColor(periodLeads);
         const colors = Array.from(colorGroups.entries())
-            .filter(([cat]) => cat !== 'Unknown') // Exclude unknown from per-period breakdown
+            .filter(([cat]) => cat !== 'Unknown')
             .map(([category, catLeads]) => ({
             color_category: category,
             raw_colors: [...new Set(catLeads
@@ -213,7 +159,7 @@ export function buildColorTrendsSummary(leads, granularity, dateField) {
     }))
         .sort((a, b) => b.count - a.count);
     const topColor = colorDistribution[0];
-    // Calculate trend direction for each color (compare first half vs second half of periods)
+    // Calculate trend direction for each color
     const colorTrends = calculateColorTrends(periods, colorDistribution);
     // Build period string
     const periodStr = sortedPeriodLabels.length > 0
@@ -240,7 +186,6 @@ export function buildColorTrendsSummary(leads, granularity, dateField) {
  * Compares first half of periods to second half.
  */
 function calculateColorTrends(periods, colorDistribution) {
-    // Need at least 2 periods to calculate trends
     if (periods.length < 2) {
         return colorDistribution.map(c => ({
             color_category: c.color_category,
@@ -248,7 +193,6 @@ function calculateColorTrends(periods, colorDistribution) {
             change_percent: 0
         }));
     }
-    // Exclude "Unknown" period from trend calculation
     const validPeriods = periods.filter(p => p.period_label !== 'Unknown');
     if (validPeriods.length < 2) {
         return colorDistribution.map(c => ({
@@ -260,7 +204,6 @@ function calculateColorTrends(periods, colorDistribution) {
     const midpoint = Math.floor(validPeriods.length / 2);
     const firstHalf = validPeriods.slice(0, midpoint);
     const secondHalf = validPeriods.slice(midpoint);
-    // Calculate count per color in each half
     const countInHalf = (half, category) => {
         return half.reduce((sum, period) => {
             const colorData = period.colors.find(c => c.color_category === category);
@@ -270,7 +213,6 @@ function calculateColorTrends(periods, colorDistribution) {
     return colorDistribution.map(c => {
         const firstCount = countInHalf(firstHalf, c.color_category);
         const secondCount = countInHalf(secondHalf, c.color_category);
-        // Avoid division by zero
         if (firstCount === 0 && secondCount === 0) {
             return { color_category: c.color_category, trend: 'stable', change_percent: 0 };
         }
@@ -309,7 +251,6 @@ export function filterLeadsByColor(leads, options) {
         filtered = filtered.filter(l => l.color.color_category === options.color_category);
     }
     // Filter by raw color (partial match)
-    // Search in both legacy raw_color and enhanced color fields for comprehensive matching
     if (options.raw_color) {
         const searchTerm = options.raw_color.toLowerCase();
         filtered = filtered.filter(l => {
@@ -317,23 +258,20 @@ export function filterLeadsByColor(leads, options) {
             if (l.color.raw_color?.toLowerCase().includes(searchTerm)) {
                 return true;
             }
-            // Check enhanced color fields if available (for LeadWithEnhancedColor)
+            // Check enhanced color fields if available
             const enhanced = l.colors;
             if (enhanced?.primary) {
-                // Check color_name (e.g., "Orange", "Pure Ash")
                 if (enhanced.primary.color_name?.toLowerCase().includes(searchTerm)) {
                     return true;
                 }
-                // Check full_specification (e.g., "9610 Pure Ash")
                 if (enhanced.primary.full_specification?.toLowerCase().includes(searchTerm)) {
                     return true;
                 }
-                // Check color_code (e.g., "9610")
                 if (enhanced.primary.color_code?.toLowerCase().includes(searchTerm)) {
                     return true;
                 }
             }
-            // Also check all_colors for multi-color specifications
+            // Check all_colors for multi-color specifications
             if (enhanced?.all_colors) {
                 return enhanced.all_colors.some(color => color.color_name?.toLowerCase().includes(searchTerm) ||
                     color.full_specification?.toLowerCase().includes(searchTerm) ||
